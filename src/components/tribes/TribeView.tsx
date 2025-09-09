@@ -5,6 +5,7 @@ import { TribeHeader } from "./TribeHeader";
 import { TribeEvents } from "./TribeEvents";
 import { TribeMembers } from "./TribeMembers";
 import { TribeAdminPanel } from "./TribeAdminPanel";
+import { TribeServices } from "../services/TribeServices";
 import { CreateEventDialog } from "../events/CreateEventDialog";
 import { LoginArea } from "@/components/auth/LoginArea";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -12,7 +13,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { RelaySelector } from "@/components/RelaySelector";
-import { Plus, Calendar, Users, Trophy, Settings } from "lucide-react";
+import { Plus, Calendar, Users, Trophy, Settings, HandHeart } from "lucide-react";
 
 interface TribeViewProps {
   tribeId: string;
@@ -96,6 +97,10 @@ export function TribeView({ tribeId }: TribeViewProps) {
               <Calendar className="h-4 w-4" />
               Events
             </TabsTrigger>
+            <TabsTrigger value="services" className="flex items-center gap-2">
+              <HandHeart className="h-4 w-4" />
+              Services
+            </TabsTrigger>
             <TabsTrigger value="members" className="flex items-center gap-2">
               <Users className="h-4 w-4" />
               Members
@@ -129,6 +134,10 @@ export function TribeView({ tribeId }: TribeViewProps) {
             canCreateEvents={canCreateEvents}
             tribeId={tribeId}
           />
+        </TabsContent>
+
+        <TabsContent value="services">
+          <TribeServices tribeId={tribeId} />
         </TabsContent>
 
         <TabsContent value="members">
