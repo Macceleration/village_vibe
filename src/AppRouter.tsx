@@ -6,6 +6,8 @@ import Index from "./pages/Index";
 import TribesPage from "./pages/TribesPage";
 import TribePage from "./pages/TribePage";
 import EventPage from "./pages/EventPage";
+import StoryPage from "./pages/StoryPage";
+import VillagePage from "./pages/VillagePage";
 import ProfilePage from "./pages/ProfilePage";
 import ProfileSettingsPage from "./pages/ProfileSettingsPage";
 import ChatPage from "./pages/ChatPage";
@@ -22,6 +24,9 @@ export function AppRouter() {
           <Route path="/tribes" element={<TribesPage />} />
           <Route path="/tribe/:tribeId" element={<TribePage />} />
           <Route path="/event/:eventId" element={<EventPage />} />
+          <Route path="/story/:storyId" element={<StoryPage />} />
+          <Route path="/village/:villageSlug" element={<VillagePage />} />
+          <Route path="/village" element={<VillagePage />} />
           <Route path="/profile/:pubkey" element={<ProfilePage />} />
           <Route path="/settings/profile" element={<ProfileSettingsPage />} />
           <Route path="/messages" element={<ChatPage />} />

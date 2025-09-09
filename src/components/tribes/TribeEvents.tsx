@@ -11,9 +11,10 @@ interface TribeEventsProps {
   isLoading: boolean;
   canCreateEvents: boolean;
   tribeId: string;
+  isModerator?: boolean;
 }
 
-export function TribeEvents({ events, isLoading, canCreateEvents, tribeId }: TribeEventsProps) {
+export function TribeEvents({ events, isLoading, canCreateEvents, tribeId, isModerator = false }: TribeEventsProps) {
   if (isLoading) {
     return (
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -102,7 +103,11 @@ export function TribeEvents({ events, isLoading, canCreateEvents, tribeId }: Tri
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {upcomingEvents.map((event) => (
-              <EventCard key={event.id} event={event} />
+              <EventCard
+                key={event.id}
+                event={event}
+                showModerationActions={isModerator}
+              />
             ))}
           </div>
         </div>
@@ -118,7 +123,12 @@ export function TribeEvents({ events, isLoading, canCreateEvents, tribeId }: Tri
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {pastEvents.map((event) => (
-              <EventCard key={event.id} event={event} isPast />
+              <EventCard
+                key={event.id}
+                event={event}
+                isPast
+                showModerationActions={isModerator}
+              />
             ))}
           </div>
         </div>

@@ -1,18 +1,28 @@
 import { Link } from "react-router-dom";
 import type { NostrEvent } from "@nostrify/nostrify";
+import { useCurrentUser } from "@/hooks/useCurrentUser";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { EventModerationDialog } from "./EventModerationDialog";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger
+} from "@/components/ui/dropdown-menu";
 // import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Calendar, MapPin, Clock, Users } from "lucide-react";
+import { Calendar, MapPin, Clock, Users, MoreHorizontal } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface EventCardProps {
   event: NostrEvent;
   isPast?: boolean;
+  showModerationActions?: boolean;
 }
 
-export function EventCard({ event, isPast = false }: EventCardProps) {
+export function EventCard({ event, isPast = false, showModerationActions = false }: EventCardProps) {
+  const { user } = useCurrentUser();
   const dTag = event.tags.find(([name]) => name === 'd')?.[1] || '';
   const titleTag = event.tags.find(([name]) => name === 'title')?.[1];
   const summaryTag = event.tags.find(([name]) => name === 'summary')?.[1];
@@ -125,6 +135,23 @@ export function EventCard({ event, isPast = false }: EventCardProps) {
               {isPast ? 'View' : 'RSVP'}
             </Link>
           </Button>
+
+          {showModerationActions && user && (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" size="sm">
+                  <MoreHorizontal className="h-4 w-4" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <EventModerationDialog event={event}>
+                  <DropdownMenuItem onSelect={(e) => e.preventDefault()}>
+                    Promote to Villages
+                  </DropdownMenuItem>
+                </EventModerationDialog>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          )}
         </div>
       </CardContent>
     </Card>

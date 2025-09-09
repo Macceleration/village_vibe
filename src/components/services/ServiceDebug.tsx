@@ -163,7 +163,9 @@ export function ServiceDebug({ tribeId, className }: ServiceDebugProps) {
 
               <div className="text-xs text-muted-foreground p-2 bg-muted rounded">
                 <strong>Troubleshooting:</strong> If services show in "Services by Author" but not in "All Services",
-                the tribe tag might be incorrect. Try creating a new service to test the fix.
+                the tribe tag might be incorrect.
+                <br />
+                <strong>Fix:</strong> The system now automatically shows all services from the tribe author when no exact tribe matches are found.
               </div>
 
               {/* Current State */}

@@ -95,6 +95,12 @@ export function useEventBadgeAwards(eventId: string) {
   });
 }
 
+// Hook to get badges for a user (simplified version)
+export function useBadges(userPubkey?: string) {
+  const awards = useUserBadgeAwards(userPubkey || '');
+  return useBadgeData(awards.data || []);
+}
+
 // Get combined badge data (definition + awards) for display
 export function useBadgeData(badgeAwards: NostrEvent[]) {
   const { nostr } = useNostr();

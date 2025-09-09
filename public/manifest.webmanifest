@@ -1,7 +1,7 @@
 {
-  "name": "Tribes",
-  "short_name": "Tribes",
-  "description": "Form communities, host events, and earn badges",
+  "name": "Village Vibe",
+  "short_name": "Village Vibe",
+  "description": "Connect communities, share stories, and host events",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#ffffff",
@@ -13,7 +13,7 @@
       "type": "image/png"
     },
     {
-      "src": "/icon-512.png", 
+      "src": "/icon-512.png",
       "sizes": "512x512",
       "type": "image/png"
     }

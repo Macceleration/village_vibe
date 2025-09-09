@@ -14,7 +14,8 @@ import { useToast } from "@/hooks/useToast";
 import { genUserName } from "@/lib/genUserName";
 import { generateTribeServicesQR, generateTribeServicesPoster, downloadQRCode, downloadSVGPoster } from "@/lib/qrGenerator";
 import { AdminServicesPanel } from "../services/AdminServicesPanel";
-import { Settings, UserCheck, UserX, Users, Loader2, QrCode, Download } from "lucide-react";
+import { VillageAssociationDialog } from "./VillageAssociationDialog";
+import { Settings, UserCheck, UserX, Users, Loader2, QrCode, Download, MapPin } from "lucide-react";
 
 interface TribeAdminPanelProps {
   tribe: NostrEvent;
@@ -510,7 +511,21 @@ export function TribeAdminPanel({ tribe, tribeId }: TribeAdminPanelProps) {
           </TabsContent>
 
           <TabsContent value="settings" className="space-y-6">
-            <div className="space-y-4">
+            <div className="space-y-6">
+              <div>
+                <h3 className="text-lg font-semibold mb-2">Village Associations</h3>
+                <p className="text-sm text-muted-foreground mb-4">
+                  Associate this tribe with villages to make content discoverable in village feeds
+                </p>
+
+                <VillageAssociationDialog tribe={tribe}>
+                  <Button variant="outline">
+                    <MapPin className="h-4 w-4 mr-2" />
+                    Manage Villages
+                  </Button>
+                </VillageAssociationDialog>
+              </div>
+
               <div>
                 <h3 className="text-lg font-semibold mb-2">Member Management</h3>
                 <p className="text-sm text-muted-foreground mb-4">

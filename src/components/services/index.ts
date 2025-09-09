@@ -7,3 +7,4 @@ export { ServiceModerationDialog } from './ServiceModerationDialog';
 export { AdminMatchDialog } from './AdminMatchDialog';
 export { AdminServicesPanel } from './AdminServicesPanel';
 export { ServiceDebug } from './ServiceDebug';
+export { ServicePromotionDialog } from './ServicePromotionDialog';

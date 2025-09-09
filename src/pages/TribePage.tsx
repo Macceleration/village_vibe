@@ -7,8 +7,8 @@ const TribePage = () => {
   const { tribeId } = useParams<{ tribeId: string }>();
 
   useSeoMeta({
-    title: 'Tribe - Tribes',
-    description: 'View tribe details, members, and events.',
+    title: 'Tribe - Village Vibe',
+    description: 'View tribe details, members, events, and stories.',
   });
 
   if (!tribeId) {

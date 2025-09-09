@@ -17,9 +17,10 @@ import { Plus, HandHeart, HelpCircle, Filter } from 'lucide-react';
 interface TribeServicesProps {
   tribeId: string;
   className?: string;
+  isModerator?: boolean;
 }
 
-export function TribeServices({ tribeId, className }: TribeServicesProps) {
+export function TribeServices({ tribeId, className, isModerator = false }: TribeServicesProps) {
   const { user } = useCurrentUser();
   const [activeTab, setActiveTab] = useState<'offers' | 'requests'>('offers');
   const [filters, setFilters] = useState<ServiceFiltersType>({});
@@ -255,6 +256,7 @@ export function TribeServices({ tribeId, className }: TribeServicesProps) {
                   event={service}
                   userLocation={userLocation}
                   tribeId={tribeId}
+                  showModerationControls={isModerator}
                 />
               ))}
             </div>
@@ -294,6 +296,7 @@ export function TribeServices({ tribeId, className }: TribeServicesProps) {
                   event={service}
                   userLocation={userLocation}
                   tribeId={tribeId}
+                  showModerationControls={isModerator}
                 />
               ))}
             </div>

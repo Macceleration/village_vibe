@@ -23,7 +23,7 @@ export function Navigation() {
           {/* Logo */}
           <Link to="/" className="flex items-center gap-2 font-bold text-xl">
             <span className="bg-gradient-to-r from-purple-600 to-pink-600 bg-clip-text text-transparent">
-              🌟 Tribes
+              🏘️ Village Vibe
             </span>
           </Link>
 
@@ -36,6 +36,22 @@ export function Navigation() {
               }`}
             >
               Home
+            </Link>
+            <Link
+              to="/tribes"
+              className={`text-sm font-medium transition-colors hover:text-primary ${
+                location.pathname === '/tribes' ? 'text-foreground' : 'text-muted-foreground'
+              }`}
+            >
+              Tribes
+            </Link>
+            <Link
+              to="/village"
+              className={`text-sm font-medium transition-colors hover:text-primary ${
+                location.pathname.startsWith('/village') ? 'text-foreground' : 'text-muted-foreground'
+              }`}
+            >
+              Village
             </Link>
             {user && (
               <Link

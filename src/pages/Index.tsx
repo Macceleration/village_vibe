@@ -11,8 +11,8 @@ const Index = () => {
   const { user } = useCurrentUser();
 
   useSeoMeta({
-    title: 'Tribes - Form Communities, Host Events, Earn Badges',
-    description: 'A Nostr-native app for creating tribes, announcing events, managing RSVPs, and earning attendance badges.',
+    title: 'Village Vibe - Connect Communities, Share Stories, Host Events',
+    description: 'A Nostr-native app for joining tribes, sharing stories, hosting events, and connecting with your village community.',
   });
 
   return (
@@ -20,10 +20,10 @@ const Index = () => {
       <div className="max-w-6xl mx-auto space-y-8">
         <div className="text-center space-y-2">
           <h1 className="text-4xl font-bold tracking-tight bg-gradient-to-r from-purple-600 to-pink-600 bg-clip-text text-transparent">
-            🌟 Tribes
+            🏘️ Village Vibe
           </h1>
           <p className="text-xl text-muted-foreground">
-            Form communities, host events, and earn badges
+            Connect communities, share stories, and host events
           </p>
         </div>
 

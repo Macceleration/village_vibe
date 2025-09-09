@@ -10,7 +10,7 @@ const TribesPage = () => {
   const { data: publicTribes, isLoading: publicTribesLoading } = usePublicTribes();
 
   useSeoMeta({
-    title: 'Browse Tribes - Discover Communities',
+    title: 'Browse Tribes - Village Vibe',
     description: 'Browse and discover public tribes and communities on Nostr.',
   });
 

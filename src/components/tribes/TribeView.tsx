@@ -6,6 +6,7 @@ import { TribeEvents } from "./TribeEvents";
 import { TribeMembers } from "./TribeMembers";
 import { TribeAdminPanel } from "./TribeAdminPanel";
 import { TribeServices } from "../services/TribeServices";
+import { TribeStories } from "../stories/TribeStories";
 import { CreateEventDialog } from "../events/CreateEventDialog";
 import { LoginArea } from "@/components/auth/LoginArea";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -13,7 +14,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { RelaySelector } from "@/components/RelaySelector";
-import { Plus, Calendar, Users, Trophy, Settings, HandHeart } from "lucide-react";
+import { Plus, Calendar, Users, Trophy, Settings, HandHeart, BookOpen } from "lucide-react";
 
 interface TribeViewProps {
   tribeId: string;
@@ -97,6 +98,10 @@ export function TribeView({ tribeId }: TribeViewProps) {
               <Calendar className="h-4 w-4" />
               Events
             </TabsTrigger>
+            <TabsTrigger value="stories" className="flex items-center gap-2">
+              <BookOpen className="h-4 w-4" />
+              Stories
+            </TabsTrigger>
             <TabsTrigger value="services" className="flex items-center gap-2">
               <HandHeart className="h-4 w-4" />
               Services
@@ -133,11 +138,22 @@ export function TribeView({ tribeId }: TribeViewProps) {
             isLoading={eventsLoading}
             canCreateEvents={canCreateEvents}
             tribeId={tribeId}
+            isModerator={isModerator}
+          />
+        </TabsContent>
+
+        <TabsContent value="stories">
+          <TribeStories
+            tribeId={tribeId}
+            tribe={tribe}
+            canCreateStories={!!user} // Any logged-in user can create stories
+            isModerator={isModerator}
+            villageSlug={tribe.tags.find(([name]) => name === 'village')?.[1]}
           />
         </TabsContent>
 
         <TabsContent value="services">
-          <TribeServices tribeId={tribeId} />
+          <TribeServices tribeId={tribeId} isModerator={isModerator} />
         </TabsContent>
 
         <TabsContent value="members">

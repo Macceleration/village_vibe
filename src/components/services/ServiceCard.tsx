@@ -6,6 +6,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { ProfileZapDialog } from '@/components/ProfileZapDialog';
 import { DMDialog } from '@/components/DMDialog';
 import { ServiceModerationDialog } from './ServiceModerationDialog';
+import { ServicePromotionDialog } from './ServicePromotionDialog';
 import { useAuthor } from '@/hooks/useAuthor';
 import { useCurrentUser } from '@/hooks/useCurrentUser';
 import { useUserBadgeAwards } from '@/hooks/useBadges';
@@ -22,7 +23,8 @@ import {
   Zap,
   HandHeart,
   HelpCircle,
-  Shield
+  Shield,
+  Eye
 } from 'lucide-react';
 import type { NostrEvent } from '@nostrify/nostrify';
 
@@ -204,11 +206,19 @@ export function ServiceCard({ event, userLocation, className, tribeId, showModer
           <div className="flex items-center gap-2">
             {/* Admin moderation controls */}
             {(showModerationControls || isModerator) && (
-              <ServiceModerationDialog serviceEvent={event}>
-                <Button size="sm" variant="outline" className="text-destructive hover:text-destructive">
-                  <Shield className="h-4 w-4" />
-                </Button>
-              </ServiceModerationDialog>
+              <>
+                <ServiceModerationDialog serviceEvent={event}>
+                  <Button size="sm" variant="outline" className="text-destructive hover:text-destructive">
+                    <Shield className="h-4 w-4" />
+                  </Button>
+                </ServiceModerationDialog>
+
+                <ServicePromotionDialog service={event}>
+                  <Button size="sm" variant="outline">
+                    <Eye className="h-4 w-4" />
+                  </Button>
+                </ServicePromotionDialog>
+              </>
             )}
 
             {/* User action button */}

@@ -56,14 +56,21 @@ export function useTribeServices(tribeId: string, filters: ServiceFilters = {}) 
 
       console.log('📦 Found events by author:', authorEvents.length);
 
-      // Filter by tribe tag client-side (same as debug component)
-      const tribeEvents = authorEvents.filter(event => {
+      // Filter by tribe tag client-side, but fallback to showing all author's services
+      let tribeEvents = authorEvents.filter(event => {
         const tribeTags = event.tags.filter(([name]) => name === 'tribe');
         const matchesTribe = tribeTags.some(([, value]) => value === dTag);
         return matchesTribe;
       });
 
-      console.log('🏘️ Events matching tribe:', tribeEvents.length);
+      console.log('🏘️ Events matching exact tribe:', tribeEvents.length);
+
+      // If no services match the exact tribe, show all services from this author
+      // This helps when services were created for different tribes by the same author
+      if (tribeEvents.length === 0) {
+        tribeEvents = authorEvents;
+        console.log('📋 Falling back to all author services:', tribeEvents.length);
+      }
 
       // Apply additional filters
       let filteredEvents = tribeEvents;
@@ -136,26 +143,38 @@ export function useVillageServices(villageSlug: string, filters: ServiceFilters 
       if (!filters.type || filters.type === 'offer') kinds.push(38857);
       if (!filters.type || filters.type === 'request') kinds.push(30627);
 
-      const baseFilter: {
-        kinds: number[];
-        '#village': string[];
-        limit: number;
-        '#t'?: string[];
-      } = {
-        kinds,
-        '#village': [villageSlug],
-        limit: 100,
-      };
+      console.log('🏘️ Querying village services for:', villageSlug);
 
-      // Add category filter if specified
+      // Use broader query to get all services, then filter client-side
+      const events = await nostr.query([{
+        kinds,
+        limit: 200,
+      }], { signal });
+
+      console.log('📦 Found all services:', events.length);
+
+      // Filter for services that have the village tag
+      const villageEvents = events.filter(event => {
+        const villageTags = event.tags.filter(([name]) => name === 'village');
+        const hasVillage = villageTags.some(([, value]) => value === villageSlug);
+        return hasVillage;
+      });
+
+      console.log('🏘️ Services with village tag:', villageEvents.length);
+
+      // Apply additional filters
+      let filteredEvents = villageEvents;
+
       if (filters.category) {
-        baseFilter['#t'] = [filters.category];
+        filteredEvents = filteredEvents.filter(event => {
+          return event.tags.some(([name, value]) => name === 't' && value === filters.category);
+        });
       }
 
-      // Query for village services
-      const events = await nostr.query([baseFilter], { signal });
+      const validEvents = filteredEvents.filter(validateServiceEvent);
+      console.log('✅ Valid village services:', validEvents.length);
 
-      return events.filter(validateServiceEvent);
+      return validEvents;
     },
   });
 }
