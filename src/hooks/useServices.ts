@@ -1,6 +1,7 @@
 import { useNostr } from '@nostrify/react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import type { NostrEvent } from '@nostrify/nostrify';
+import { useVillagePreferences } from './useVillagePreferences';
 
 // Service categories
 export const SERVICE_CATEGORIES = [
@@ -25,6 +26,7 @@ export interface ServiceFilters {
   trusted?: boolean;
   village?: string;
   search?: string;
+  limit?: number;
 }
 
 // Hook to get services for a specific tribe
@@ -33,6 +35,7 @@ export function useTribeServices(tribeId: string, filters: ServiceFilters = {}) 
 
   return useQuery({
     queryKey: ['tribe-services', tribeId, filters],
+    staleTime: 30000, // Consider data fresh for 30 seconds
     queryFn: async (c) => {
       const signal = AbortSignal.any([c.signal, AbortSignal.timeout(1500)]);
 
@@ -132,9 +135,11 @@ export function useService(serviceId: string, kind: 38857 | 30627) {
 // Hook to get services by village
 export function useVillageServices(villageSlug: string, filters: ServiceFilters = {}) {
   const { nostr } = useNostr();
+  const { preferences } = useVillagePreferences();
 
   return useQuery({
     queryKey: ['village-services', villageSlug, filters],
+    staleTime: 30000, // Consider data fresh for 30 seconds
     queryFn: async (c) => {
       const signal = AbortSignal.any([c.signal, AbortSignal.timeout(1500)]);
 
@@ -145,22 +150,95 @@ export function useVillageServices(villageSlug: string, filters: ServiceFilters 
 
       console.log('🏘️ Querying village services for:', villageSlug);
 
-      // Use broader query to get all services, then filter client-side
-      const events = await nostr.query([{
-        kinds,
-        limit: 200,
-      }], { signal });
+      let villageEvents: NostrEvent[] = [];
 
-      console.log('📦 Found all services:', events.length);
+      // Strategy 1: Try to query with village tag filter first (more efficient if relay supports it)
+      if (villageSlug !== 'main') {
+        try {
+          console.log('🔍 Trying relay-level village filter for services:', villageSlug);
+          villageEvents = await nostr.query([{
+            kinds,
+            '#village': [villageSlug],
+            limit: filters.limit || 100,
+          }], { signal });
+          console.log('📦 Found services via relay filter:', villageEvents.length);
+        } catch {
+          console.log('⚠️ Relay-level village filter failed, falling back to client-side filtering');
+        }
+      }
 
-      // Filter for services that have the village tag
-      const villageEvents = events.filter(event => {
-        const villageTags = event.tags.filter(([name]) => name === 'village');
-        const hasVillage = villageTags.some(([, value]) => value === villageSlug);
-        return hasVillage;
-      });
+      // Strategy 2: If relay filtering didn't work or for main village, use client-side filtering
+      if (villageEvents.length === 0 || villageSlug === 'main') {
+        console.log('🔍 Using client-side filtering for village services');
 
-      console.log('🏘️ Services with village tag:', villageEvents.length);
+        // Get all services and filter client-side
+        const allEvents = await nostr.query([{
+          kinds,
+          limit: filters.limit || 200, // Increase limit for client-side filtering
+        }], { signal });
+
+        console.log('📦 Found all services for client-side filtering:', allEvents.length);
+
+        // Filter for services that have village tags
+        villageEvents = allEvents.filter(event => {
+          const villageTags = event.tags.filter(([name]) => name === 'village');
+
+          if (villageSlug === 'main') {
+            // For main village page, show all village content
+            return villageTags.length > 0;
+          } else {
+            // For specific village pages, filter by that village
+            return villageTags.some(([, value]) => value === villageSlug);
+          }
+        });
+
+        console.log('🏘️ Services with village tag (client-side):', villageEvents.length);
+      }
+
+      // Strategy 3: Also query for services with promotion labels and merge them
+      try {
+        console.log('🔍 Querying promotion labels for village services:', villageSlug);
+        const promotionLabels = await nostr.query([{
+          kinds: [1985], // Labels
+          '#l': ['village-promoted'],
+          limit: 100,
+        }], { signal });
+
+        console.log('📋 Found promotion labels:', promotionLabels.length);
+
+        // Extract service references from promotion labels
+        const promotedServiceRefs = promotionLabels
+          .map(label => label.tags.find(([name]) => name === 'a')?.[1])
+          .filter((ref): ref is string => Boolean(ref))
+          .filter(ref => ref.startsWith('38857:') || ref.startsWith('30627:'));
+
+        if (promotedServiceRefs.length > 0) {
+          console.log('📚 Found promoted service references:', promotedServiceRefs.length);
+
+          // Query the actual promoted services
+          const promotedServices = await nostr.query([{
+            kinds,
+            limit: 200,
+          }], { signal });
+
+          // Filter promoted services and merge with village events
+          const matchingPromotedServices = promotedServices.filter(service => {
+            const serviceRef = `${service.kind}:${service.pubkey}:${service.tags.find(([name]) => name === 'd')?.[1]}`;
+            return promotedServiceRefs.includes(serviceRef);
+          });
+
+          console.log('✨ Found matching promoted services:', matchingPromotedServices.length);
+
+          // Merge with existing village events (avoid duplicates)
+          const existingIds = new Set(villageEvents.map(e => e.id));
+          const newPromotedServices = matchingPromotedServices.filter(service => !existingIds.has(service.id));
+          villageEvents = [...villageEvents, ...newPromotedServices];
+
+          console.log('🔄 Merged promoted services, total:', villageEvents.length);
+        }
+      } catch (err) {
+        console.log('⚠️ Failed to query promotion labels:', err);
+      }
 
       // Apply additional filters
       let filteredEvents = villageEvents;
@@ -171,10 +249,26 @@ export function useVillageServices(villageSlug: string, filters: ServiceFilters 
         });
       }
 
-      const validEvents = filteredEvents.filter(validateServiceEvent);
-      console.log('✅ Valid village services:', validEvents.length);
+      if (filters.search) {
+        const searchLower = filters.search.toLowerCase();
+        filteredEvents = filteredEvents.filter(event => {
+          return event.content.toLowerCase().includes(searchLower);
+        });
+      }
 
-      return validEvents;
+      const validEvents = filteredEvents.filter(validateServiceEvent);
+      console.log('✅ Valid village services after all strategies:', validEvents.length);
+
+      // Filter out services from hidden tribes
+      const nonHiddenEvents = validEvents.filter(event => {
+        const tribeTag = event.tags.find(([name]) => name === 'tribe')?.[1];
+        return !tribeTag || !preferences.hiddenTribes.includes(tribeTag);
+      });
+
+      console.log('🚫 After filtering hidden tribes:', nonHiddenEvents.length);
+
+      // Sort by creation date (newest first)
+      return nonHiddenEvents.sort((a, b) => b.created_at - a.created_at);
     },
   });
 }
@@ -272,11 +366,158 @@ export function useCreateService() {
       queryClient.invalidateQueries({
         queryKey: ['tribe-services']
       });
+      queryClient.invalidateQueries({
+        queryKey: ['village-services']
+      });
       if (variables.villages) {
         variables.villages.forEach(village => {
           queryClient.invalidateQueries({
             queryKey: ['village-services', village]
           });
+        });
+      }
+    },
+  });
+}
+
+// Hook to promote a service to villages (creates label AND updates service with village tags)
+export function usePromoteServiceToVillages() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (data: {
+      service: NostrEvent;
+      villages: string[];
+      reason?: string;
+    }) => {
+      const { service, villages, reason } = data;
+
+      // Parse service data
+      const dTag = service.tags.find(([name]) => name === 'd')?.[1];
+      if (!dTag) {
+        throw new Error('Service missing d tag');
+      }
+
+      const serviceId = `${service.pubkey}:${dTag}`;
+
+      // Get existing village tags
+      const existingVillageTags = service.tags.filter(([name]) => name === 'village').map(([, value]) => value);
+      const newVillages = villages.filter(v => !existingVillageTags.includes(v));
+      const allVillages = [...existingVillageTags, ...newVillages];
+
+      // Create updated service with village tags
+      const updatedTags = [
+        ...service.tags.filter(([name]) => name !== 'village'), // Remove existing village tags
+        ...allVillages.map(village => ['village', village]), // Add all village tags
+      ];
+
+      const updatedService = {
+        kind: service.kind,
+        content: service.content,
+        tags: updatedTags,
+        created_at: Math.floor(Date.now() / 1000),
+      };
+
+      // Create promotion label
+      const labelTags: string[][] = [
+        ['a', `${service.kind}:${service.pubkey}:${dTag}`],
+        ['l', 'village-promoted', 'promotion'],
+        ['L', 'promotion'],
+        ['alt', `Service promoted to villages: ${villages.join(', ')}`],
+      ];
+
+      // Add village context to label
+      villages.forEach(village => {
+        labelTags.push(['village', village]);
+      });
+
+      const promotionLabel = {
+        kind: 1985,
+        content: reason || `Promoted to ${villages.join(', ')}`,
+        tags: labelTags,
+        created_at: Math.floor(Date.now() / 1000),
+      };
+
+      return {
+        serviceId,
+        updatedService,
+        promotionLabel,
+        villages: allVillages,
+      };
+    },
+    onSuccess: (result) => {
+      // Invalidate relevant queries
+      queryClient.invalidateQueries({
+        queryKey: ['service', result.serviceId]
+      });
+      queryClient.invalidateQueries({
+        queryKey: ['tribe-services']
+      });
+      queryClient.invalidateQueries({
+        queryKey: ['village-services']
+      });
+
+      // Invalidate specific village queries
+      result.villages.forEach(village => {
+        queryClient.invalidateQueries({
+          queryKey: ['village-services', village]
+        });
+      });
+    },
+  });
+}
+
+// Hook to create a service label (for moderation)
+export function useCreateServiceLabel() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (data: {
+      serviceId: string;
+      serviceKind: 38857 | 30627;
+      label: string;
+      namespace?: string;
+      content?: string;
+    }) => {
+      // Parse service coordinates
+      const [pubkey, dTag] = data.serviceId.split(':');
+      if (!pubkey || !dTag) {
+        throw new Error('Invalid service ID format');
+      }
+
+      // Build tags array
+      const tags: string[][] = [
+        ['a', `${data.serviceKind}:${pubkey}:${dTag}`],
+        ['l', data.label, data.namespace || 'ugc'],
+        ['alt', `Service moderation label: ${data.label}`],
+      ];
+
+      // Add namespace tag if provided
+      if (data.namespace) {
+        tags.push(['L', data.namespace]);
+      }
+
+      // Create the event
+      const eventData = {
+        kind: 1985,
+        content: data.content || '',
+        tags,
+        created_at: Math.floor(Date.now() / 1000),
+      };
+
+      // Note: This will be published using useNostrPublish in the component
+      return { ...data, eventData };
+    },
+    onSuccess: (_, variables) => {
+      // Invalidate labels for this service
+      queryClient.invalidateQueries({
+        queryKey: ['service-labels', variables.serviceId]
+      });
+
+      // If this is a village promotion, invalidate village services
+      if (variables.label === 'village-promoted') {
+        queryClient.invalidateQueries({
+          queryKey: ['village-services']
         });
       }
     },

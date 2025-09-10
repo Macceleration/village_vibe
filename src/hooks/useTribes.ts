@@ -179,6 +179,50 @@ function getUniqueMemberCount(tribe: NostrEvent): number {
   return memberPubkeys.size;
 }
 
+// Hook to get tribe name from tribe tag value
+export function useTribeName(tribeTag?: string) {
+  const { nostr } = useNostr();
+
+  return useQuery({
+    queryKey: ['tribe-name', tribeTag],
+    queryFn: async (c) => {
+      if (!tribeTag) return null;
+
+      const signal = AbortSignal.any([c.signal, AbortSignal.timeout(1500)]);
+
+      // Query for community definitions with this d tag
+      const events = await nostr.query([
+        {
+          kinds: [34550], // Community Definition (NIP-72)
+          '#d': [tribeTag],
+          limit: 10,
+        }
+      ], { signal });
+
+      if (events.length === 0) return null;
+
+      // Return the first valid tribe event
+      const tribe = events.find(validateTribeEvent);
+      if (!tribe) return null;
+
+      // Extract tribe name
+      const name = tribe.tags.find(([name]) => name === 'name')?.[1] || tribeTag;
+      return {
+        name,
+        tribe,
+      };
+    },
+    enabled: !!tribeTag,
+    staleTime: 5 * 60 * 1000, // Cache for 5 minutes
+  });
+}
+
+// Helper function to extract tribe name from event
+export function extractTribeName(event: NostrEvent): string {
+  const tribeTag = event.tags.find(([name]) => name === 'tribe')?.[1];
+  return tribeTag || 'Unknown Tribe';
+}
+
 // Validate tribe event structure
 export function validateTribeEvent(event: NostrEvent): boolean {
   if (event.kind !== 34550) return false;

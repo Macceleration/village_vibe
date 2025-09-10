@@ -5,6 +5,7 @@ import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { EventModerationDialog } from "./EventModerationDialog";
+import { TribeName } from '@/components/tribes/TribeName';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -127,6 +128,16 @@ export function EventCard({ event, isPast = false, showModerationActions = false
             </div>
           )}
         </div>
+
+        {/* Tribe tag */}
+        {(() => {
+          const tribeTag = event.tags.find(([name]) => name === 'tribe')?.[1];
+          return tribeTag ? (
+            <div className="flex gap-2">
+              <TribeName tribeTag={tribeTag} />
+            </div>
+          ) : null;
+        })()}
 
         <div className="flex gap-2">
           <Button asChild size="sm" className="flex-1">

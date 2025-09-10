@@ -12,7 +12,9 @@ import { Button } from '@/components/ui/button';
 import { ZapButton } from '@/components/ZapButton';
 import { ShareButton } from '@/components/ShareButton';
 import { StoryModerationDialog } from './StoryModerationDialog';
-import { BookOpen, MapPin, Calendar, Users, MoreHorizontal } from 'lucide-react';
+import { TribeName } from '@/components/tribes/TribeName';
+import { HideTribeButton } from '@/components/villages/HideTribeButton';
+import { BookOpen, MapPin, Calendar, MoreHorizontal } from 'lucide-react';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -26,6 +28,7 @@ interface StoryCardProps {
   showVillageTag?: boolean;
   showTribeTag?: boolean;
   showModerationActions?: boolean;
+  showHideTribeOption?: boolean;
   villageSlug?: string;
   className?: string;
 }
@@ -35,6 +38,7 @@ export function StoryCard({
   showVillageTag = false,
   showTribeTag = true,
   showModerationActions = false,
+  showHideTribeOption = false,
   villageSlug,
   className = ''
 }: StoryCardProps) {
@@ -138,10 +142,7 @@ export function StoryCard({
 
           <div className="flex flex-wrap gap-2">
             {showTribeTag && storyData.tribe && (
-              <Badge variant="secondary" className="text-xs">
-                <Users className="h-3 w-3 mr-1" />
-                {storyData.tribe}
-              </Badge>
+              <TribeName tribeTag={storyData.tribe} />
             )}
 
             {showVillageTag && storyData.villages.length > 0 && (
@@ -181,7 +182,7 @@ export function StoryCard({
               title={storyData.title || 'Story'}
             />
 
-            {showModerationActions && user && (
+            {(showModerationActions || showHideTribeOption) && user && (
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <Button variant="ghost" size="sm">
@@ -189,11 +190,23 @@ export function StoryCard({
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end">
-                  <StoryModerationDialog story={story} villageSlug={villageSlug}>
+                  {showModerationActions && (
+                    <StoryModerationDialog story={story} villageSlug={villageSlug}>
+                      <DropdownMenuItem onSelect={(e) => e.preventDefault()}>
+                        Moderate Story
+                      </DropdownMenuItem>
+                    </StoryModerationDialog>
+                  )}
+                  {showHideTribeOption && storyData.tribe && (
                     <DropdownMenuItem onSelect={(e) => e.preventDefault()}>
-                      Moderate Story
+                      <HideTribeButton
+                        tribeTag={storyData.tribe}
+                        variant="ghost"
+                        size="sm"
+                        className="w-full justify-start p-0 h-auto"
+                      />
                     </DropdownMenuItem>
-                  </StoryModerationDialog>
+                  )}
                 </DropdownMenuContent>
               </DropdownMenu>
             )}
