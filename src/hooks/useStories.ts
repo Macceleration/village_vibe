@@ -1,6 +1,7 @@
 import { useNostr } from '@nostrify/react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import type { NostrEvent } from '@nostrify/nostrify';
+import { useVillagePreferences } from './useVillagePreferences';
 
 // Story filter options
 export interface StoryFilters {
@@ -76,38 +77,106 @@ export function useTribeStories(tribeId: string, filters: StoryFilters = {}) {
 // Hook to get stories for a village
 export function useVillageStories(villageSlug: string, filters: StoryFilters = {}) {
   const { nostr } = useNostr();
+  const { preferences } = useVillagePreferences();
 
   return useQuery({
-    queryKey: ['village-stories', villageSlug, filters],
+    queryKey: ['village-stories', villageSlug, filters, preferences.hiddenTribes],
+    staleTime: 30000, // Consider data fresh for 30 seconds
     queryFn: async (c) => {
       const signal = AbortSignal.any([c.signal, AbortSignal.timeout(1500)]);
 
       console.log('🏘️ Querying village stories for:', villageSlug);
 
-      // Use broader query to get all stories, then filter client-side
-      // This is more reliable than relying on relay-level #village indexing
-      const events = await nostr.query([{
-        kinds: [30023], // Long-form content (NIP-23)
-        limit: filters.limit || 100,
-      }], { signal });
+      // Strategy 1: Try to query with village tag filter first (more efficient if relay supports it)
+      let villageEvents: NostrEvent[] = [];
 
-      console.log('📦 Found all stories:', events.length);
-
-      // Filter for stories that have village tags
-      const villageEvents = events.filter(event => {
-        // For main village page, show all village content
-        if (villageSlug === 'main') {
-          // Check for explicit village tags (any village)
-          const villageTags = event.tags.filter(([name]) => name === 'village');
-          return villageTags.length > 0;
-        } else {
-          // For specific village pages, filter by that village
-          const villageTags = event.tags.filter(([name]) => name === 'village');
-          return villageTags.some(([, value]) => value === villageSlug);
+      if (villageSlug !== 'main') {
+        try {
+          console.log('🔍 Trying relay-level village filter for:', villageSlug);
+          villageEvents = await nostr.query([{
+            kinds: [30023],
+            '#village': [villageSlug],
+            limit: filters.limit || 100,
+          }], { signal });
+          console.log('📦 Found stories via relay filter:', villageEvents.length);
+        } catch {
+          console.log('⚠️ Relay-level village filter failed, falling back to client-side filtering');
         }
-      });
+      }
 
-      console.log('🏘️ Stories with village tag:', villageEvents.length);
+      // Strategy 2: If relay filtering didn't work or for main village, use client-side filtering
+      if (villageEvents.length === 0 || villageSlug === 'main') {
+        console.log('🔍 Using client-side filtering for village stories');
+
+        // Get all stories and filter client-side
+        const allEvents = await nostr.query([{
+          kinds: [30023], // Long-form content (NIP-23)
+          limit: filters.limit || 200, // Increase limit for client-side filtering
+        }], { signal });
+
+        console.log('📦 Found all stories for client-side filtering:', allEvents.length);
+
+        // Filter for stories that have village tags
+        villageEvents = allEvents.filter(event => {
+          const villageTags = event.tags.filter(([name]) => name === 'village');
+
+          if (villageSlug === 'main') {
+            // For main village page, show all village content
+            return villageTags.length > 0;
+          } else {
+            // For specific village pages, filter by that village
+            return villageTags.some(([, value]) => value === villageSlug);
+          }
+        });
+
+        console.log('🏘️ Stories with village tag (client-side):', villageEvents.length);
+      }
+
+      // Strategy 3: Also query for stories with promotion labels and merge them
+      try {
+        console.log('🔍 Querying promotion labels for village:', villageSlug);
+        const promotionLabels = await nostr.query([{
+          kinds: [1985], // Labels
+          '#l': ['village-promoted'],
+          limit: 100,
+        }], { signal });
+
+        console.log('📋 Found promotion labels:', promotionLabels.length);
+
+        // Extract story references from promotion labels
+        const promotedStoryRefs = promotionLabels
+          .map(label => label.tags.find(([name]) => name === 'a')?.[1])
+          .filter((ref): ref is string => Boolean(ref))
+          .filter(ref => ref.startsWith('30023:'));
+
+        if (promotedStoryRefs.length > 0) {
+          console.log('📚 Found promoted story references:', promotedStoryRefs.length);
+
+          // Query the actual promoted stories
+          const promotedStories = await nostr.query([{
+            kinds: [30023],
+            // Note: We can't directly query by 'a' tag, so we'll need to get all and filter
+            limit: 200,
+          }], { signal });
+
+          // Filter promoted stories and merge with village events
+          const matchingPromotedStories = promotedStories.filter(story => {
+            const storyRef = `30023:${story.pubkey}:${story.tags.find(([name]) => name === 'd')?.[1]}`;
+            return promotedStoryRefs.includes(storyRef);
+          });
+
+          console.log('✨ Found matching promoted stories:', matchingPromotedStories.length);
+
+          // Merge with existing village events (avoid duplicates)
+          const existingIds = new Set(villageEvents.map(e => e.id));
+          const newPromotedStories = matchingPromotedStories.filter(story => !existingIds.has(story.id));
+          villageEvents = [...villageEvents, ...newPromotedStories];
+
+          console.log('🔄 Merged promoted stories, total:', villageEvents.length);
+        }
+      } catch (err) {
+        console.log('⚠️ Failed to query promotion labels:', err);
+      }
 
       // Apply additional filters
       let filteredEvents = villageEvents;
@@ -124,10 +193,22 @@ export function useVillageStories(villageSlug: string, filters: StoryFilters = {
       }
 
       const validEvents = filteredEvents.filter(validateStoryEvent);
-      console.log('✅ Valid village stories:', validEvents.length);
+      console.log('✅ Valid village stories after all strategies:', validEvents.length);
 
-      // Sort by creation date (newest first)
-      return validEvents.sort((a, b) => b.created_at - a.created_at);
+      // Filter out stories from hidden tribes
+      const nonHiddenEvents = validEvents.filter(event => {
+        const tribeTag = event.tags.find(([name]) => name === 'tribe')?.[1];
+        return !tribeTag || !preferences.hiddenTribes.includes(tribeTag);
+      });
+
+      console.log('🚫 After filtering hidden tribes:', nonHiddenEvents.length);
+
+      // Deduplicate events by ID and sort by creation date (newest first)
+      const uniqueEvents = Array.from(
+        new Map(nonHiddenEvents.map(event => [event.id, event])).values()
+      );
+
+      return uniqueEvents.sort((a, b) => b.created_at - a.created_at);
     },
   });
 }
@@ -251,6 +332,12 @@ export function useCreateStory() {
       queryClient.invalidateQueries({
         queryKey: ['tribe-stories']
       });
+      queryClient.invalidateQueries({
+        queryKey: ['village-stories']
+      });
+      queryClient.invalidateQueries({
+        queryKey: ['multi-village-stories']
+      });
       if (variables.villages) {
         variables.villages.forEach(village => {
           queryClient.invalidateQueries({
@@ -306,6 +393,109 @@ export function useCreateStoryLabel() {
       // Invalidate labels for this story
       queryClient.invalidateQueries({
         queryKey: ['story-labels', variables.storyId]
+      });
+
+      // If this is a village promotion, invalidate village stories
+      if (variables.label === 'village-promoted') {
+        queryClient.invalidateQueries({
+          queryKey: ['village-stories']
+        });
+        queryClient.invalidateQueries({
+          queryKey: ['multi-village-stories']
+        });
+      }
+    },
+  });
+}
+
+// Hook to promote a story to villages (creates label AND updates story with village tags)
+export function usePromoteStoryToVillages() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (data: {
+      story: NostrEvent;
+      villages: string[];
+      reason?: string;
+    }) => {
+      const { story, villages, reason } = data;
+
+      // Parse story data
+      const dTag = story.tags.find(([name]) => name === 'd')?.[1];
+      if (!dTag) {
+        throw new Error('Story missing d tag');
+      }
+
+      const storyId = `${story.pubkey}:${dTag}`;
+
+      // Get existing village tags
+      const existingVillageTags = story.tags.filter(([name]) => name === 'village').map(([, value]) => value);
+      const newVillages = villages.filter(v => !existingVillageTags.includes(v));
+      const allVillages = [...existingVillageTags, ...newVillages];
+
+      // Create updated story with village tags
+      const updatedTags = [
+        ...story.tags.filter(([name]) => name !== 'village'), // Remove existing village tags
+        ...allVillages.map(village => ['village', village]), // Add all village tags
+      ];
+
+      const updatedStory = {
+        kind: 30023,
+        content: story.content,
+        tags: updatedTags,
+        created_at: Math.floor(Date.now() / 1000),
+      };
+
+      // Create promotion label
+      const labelTags: string[][] = [
+        ['a', `30023:${story.pubkey}:${dTag}`],
+        ['l', 'village-promoted', 'promotion'],
+        ['L', 'promotion'],
+        ['alt', `Story promoted to villages: ${villages.join(', ')}`],
+      ];
+
+      // Add village context to label
+      villages.forEach(village => {
+        labelTags.push(['village', village]);
+      });
+
+      const promotionLabel = {
+        kind: 1985,
+        content: reason || `Promoted to ${villages.join(', ')}`,
+        tags: labelTags,
+        created_at: Math.floor(Date.now() / 1000),
+      };
+
+      return {
+        storyId,
+        updatedStory,
+        promotionLabel,
+        villages: allVillages,
+      };
+    },
+    onSuccess: (result) => {
+      // Invalidate relevant queries
+      queryClient.invalidateQueries({
+        queryKey: ['story', result.storyId]
+      });
+      queryClient.invalidateQueries({
+        queryKey: ['story-labels', result.storyId]
+      });
+      queryClient.invalidateQueries({
+        queryKey: ['tribe-stories']
+      });
+      queryClient.invalidateQueries({
+        queryKey: ['village-stories']
+      });
+      queryClient.invalidateQueries({
+        queryKey: ['multi-village-stories']
+      });
+
+      // Invalidate specific village queries
+      result.villages.forEach(village => {
+        queryClient.invalidateQueries({
+          queryKey: ['village-stories', village]
+        });
       });
     },
   });
@@ -370,29 +560,106 @@ export function extractStoryData(event: NostrEvent) {
 // Hook to get stories for multiple villages (for village feed preferences)
 export function useMultiVillageStories(villages: string[], filters: StoryFilters = {}) {
   const { nostr } = useNostr();
+  const { preferences } = useVillagePreferences();
 
   return useQuery({
-    queryKey: ['multi-village-stories', villages, filters],
+    queryKey: ['multi-village-stories', villages, filters, preferences.hiddenTribes],
+    staleTime: 30000, // Consider data fresh for 30 seconds
     queryFn: async (c) => {
       const signal = AbortSignal.any([c.signal, AbortSignal.timeout(1500)]);
 
       console.log('🏘️ Querying stories for multiple villages:', villages);
 
-      // Use broader query to get all stories, then filter client-side
-      const events = await nostr.query([{
-        kinds: [30023], // Long-form content (NIP-23)
-        limit: filters.limit || 100,
-      }], { signal });
+      let villageEvents: NostrEvent[] = [];
 
-      console.log('📦 Found all stories:', events.length);
+      // Strategy 1: Try relay-level filtering for each village
+      if (villages.length > 0) {
+        try {
+          console.log('🔍 Trying relay-level village filters for:', villages);
+          const villageQueries = villages.map(village => ({
+            kinds: [30023],
+            '#village': [village],
+            limit: Math.ceil((filters.limit || 100) / villages.length),
+          }));
 
-      // Filter for stories that match any of the specified villages
-      const villageEvents = events.filter(event => {
-        const villageTags = event.tags.filter(([name]) => name === 'village');
-        return villageTags.some(([, value]) => villages.includes(value));
-      });
+          const villageResults = await Promise.all(
+            villageQueries.map(query =>
+              nostr.query([query], { signal }).catch(() => [])
+            )
+          );
 
-      console.log('🏘️ Stories matching villages:', villageEvents.length);
+          villageEvents = villageResults.flat();
+          console.log('📦 Found stories via relay filters:', villageEvents.length);
+        } catch {
+          console.log('⚠️ Relay-level village filters failed, falling back to client-side filtering');
+        }
+      }
+
+      // Strategy 2: If relay filtering didn't work, use client-side filtering
+      if (villageEvents.length === 0) {
+        console.log('🔍 Using client-side filtering for multiple villages');
+
+        // Get all stories and filter client-side
+        const allEvents = await nostr.query([{
+          kinds: [30023], // Long-form content (NIP-23)
+          limit: filters.limit || 200, // Increase limit for client-side filtering
+        }], { signal });
+
+        console.log('📦 Found all stories for client-side filtering:', allEvents.length);
+
+        // Filter for stories that match any of the specified villages
+        villageEvents = allEvents.filter(event => {
+          const villageTags = event.tags.filter(([name]) => name === 'village');
+          return villageTags.some(([, value]) => villages.includes(value));
+        });
+
+        console.log('🏘️ Stories matching villages (client-side):', villageEvents.length);
+      }
+
+      // Strategy 3: Also query for stories with promotion labels
+      try {
+        console.log('🔍 Querying promotion labels for multiple villages');
+        const promotionLabels = await nostr.query([{
+          kinds: [1985], // Labels
+          '#l': ['village-promoted'],
+          limit: 100,
+        }], { signal });
+
+        console.log('📋 Found promotion labels:', promotionLabels.length);
+
+        // Extract story references from promotion labels
+        const promotedStoryRefs = promotionLabels
+          .map(label => label.tags.find(([name]) => name === 'a')?.[1])
+          .filter((ref): ref is string => Boolean(ref))
+          .filter(ref => ref.startsWith('30023:'));
+
+        if (promotedStoryRefs.length > 0) {
+          console.log('📚 Found promoted story references:', promotedStoryRefs.length);
+
+          // Query the actual promoted stories
+          const promotedStories = await nostr.query([{
+            kinds: [30023],
+            limit: 200,
+          }], { signal });
+
+          // Filter promoted stories and merge with village events
+          const matchingPromotedStories = promotedStories.filter(story => {
+            const storyRef = `30023:${story.pubkey}:${story.tags.find(([name]) => name === 'd')?.[1]}`;
+            return promotedStoryRefs.includes(storyRef);
+          });
+
+          console.log('✨ Found matching promoted stories:', matchingPromotedStories.length);
+
+          // Merge with existing village events (avoid duplicates)
+          const existingIds = new Set(villageEvents.map(e => e.id));
+          const newPromotedStories = matchingPromotedStories.filter(story => !existingIds.has(story.id));
+          villageEvents = [...villageEvents, ...newPromotedStories];
+
+          console.log('🔄 Merged promoted stories, total:', villageEvents.length);
+        }
+      } catch (err) {
+        console.log('⚠️ Failed to query promotion labels:', err);
+      }
 
       // Apply additional filters
       let filteredEvents = villageEvents;
@@ -409,10 +676,22 @@ export function useMultiVillageStories(villages: string[], filters: StoryFilters
       }
 
       const validEvents = filteredEvents.filter(validateStoryEvent);
-      console.log('✅ Valid village stories:', validEvents.length);
+      console.log('✅ Valid village stories after all strategies:', validEvents.length);
 
-      // Sort by creation date (newest first)
-      return validEvents.sort((a, b) => b.created_at - a.created_at);
+      // Filter out stories from hidden tribes
+      const nonHiddenEvents = validEvents.filter(event => {
+        const tribeTag = event.tags.find(([name]) => name === 'tribe')?.[1];
+        return !tribeTag || !preferences.hiddenTribes.includes(tribeTag);
+      });
+
+      console.log('🚫 After filtering hidden tribes:', nonHiddenEvents.length);
+
+      // Deduplicate events by ID and sort by creation date (newest first)
+      const uniqueEvents = Array.from(
+        new Map(nonHiddenEvents.map(event => [event.id, event])).values()
+      );
+
+      return uniqueEvents.sort((a, b) => b.created_at - a.created_at);
     },
   });
 }

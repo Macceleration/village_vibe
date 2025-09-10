@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useCreateEventLabel, usePromoteEventToVillages } from '@/hooks/useEvents';
 import { useNostrPublish } from '@/hooks/useNostrPublish';
 import { useCurrentUser } from '@/hooks/useCurrentUser';
 import {
@@ -10,116 +11,167 @@ import {
   DialogTrigger,
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
-import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
 import { useToast } from '@/hooks/useToast';
-import { Plus, X, Settings, Eye, Loader2 } from 'lucide-react';
+import { Settings, Eye, EyeOff, Star, Loader2 } from 'lucide-react';
 import type { NostrEvent } from '@nostrify/nostrify';
 
 interface EventModerationDialogProps {
   children: React.ReactNode;
   event: NostrEvent;
+  villageSlug?: string;
+  onPromote?: () => void;
 }
 
-export function EventModerationDialog({ children, event }: EventModerationDialogProps) {
+export function EventModerationDialog({
+  children,
+  event,
+  villageSlug,
+  onPromote
+}: EventModerationDialogProps) {
   const { user } = useCurrentUser();
   const { toast } = useToast();
-  const { mutate: publishEvent, isPending } = useNostrPublish();
+  const { mutate: createLabel, isPending: isCreatingLabel } = useCreateEventLabel();
+  const { mutate: promoteToVillages, isPending: isPromoting } = usePromoteEventToVillages();
+  const { mutate: publishEvent } = useNostrPublish();
 
   const [open, setOpen] = useState(false);
-  const [newVillage, setNewVillage] = useState('');
-  const [villages, setVillages] = useState<string[]>([]);
+  const [reason, setReason] = useState('');
 
-  // Extract current villages from event tags
-  const currentVillages = event.tags
-    .filter(([name]) => name === 'village')
-    .map(([, value]) => value)
-    .filter(Boolean);
+  const eventId = `${event.pubkey}:${event.tags.find(([name]) => name === 'd')?.[1]}`;
+  const eventTitle = event.tags.find(([name]) => name === 'title')?.[1] || 'Untitled Event';
 
-  // Initialize villages state with current villages
-  useState(() => {
-    setVillages(currentVillages);
-  });
-
-  const eventTitle = event.tags.find(([name]) => name === 'title')?.[1] ||
-                   event.tags.find(([name]) => name === 'name')?.[1] ||
-                   'Untitled Event';
-
-  const addVillage = () => {
-    const villageSlug = newVillage.trim().toLowerCase().replace(/\s+/g, '-');
-    if (villageSlug && !villages.includes(villageSlug)) {
-      setVillages([...villages, villageSlug]);
-      setNewVillage('');
-    }
-  };
-
-  const removeVillage = (villageToRemove: string) => {
-    setVillages(villages.filter(v => v !== villageToRemove));
-  };
-
-  const handlePromoteToVillages = async () => {
+  const handleModeration = async (action: 'hide' | 'promote' | 'feature') => {
     if (!user) {
       toast({
         title: "Login required",
-        description: "Please log in to promote events.",
+        description: "Please log in to moderate events.",
         variant: "destructive",
       });
       return;
     }
 
     try {
-      // Create updated event with village tags
-      const dTag = event.tags.find(([name]) => name === 'd')?.[1];
-      if (!dTag) {
-        throw new Error('Event missing d tag');
+      if (action === 'promote' && villageSlug) {
+        // Use the new promotion system that adds village tags directly
+        promoteToVillages({
+          event,
+          villages: [villageSlug],
+          reason: reason.trim() || undefined,
+        }, {
+          onSuccess: (result) => {
+            // Publish both the updated event and the promotion label
+            Promise.all([
+              new Promise((resolve, reject) => {
+                publishEvent(result.updatedEvent, {
+                  onSuccess: resolve,
+                  onError: reject,
+                });
+              }),
+              new Promise((resolve, reject) => {
+                publishEvent(result.promotionLabel, {
+                  onSuccess: resolve,
+                  onError: reject,
+                });
+              }),
+            ]).then(() => {
+              toast({
+                title: "Event promoted",
+                description: `Event has been promoted to ${villageSlug} village and will now appear in the village feed.`,
+              });
+
+              if (onPromote) {
+                onPromote();
+              }
+
+              setOpen(false);
+              setReason('');
+            }).catch((error) => {
+              console.error('Failed to publish promotion:', error);
+              toast({
+                title: "Failed to publish",
+                description: "Event promotion couldn't be published. Please try again.",
+                variant: "destructive",
+              });
+            });
+          },
+          onError: (error) => {
+            console.error('Failed to promote event:', error);
+            toast({
+              title: "Promotion failed",
+              description: "Failed to promote event. Please try again.",
+              variant: "destructive",
+            });
+          },
+        });
+      } else {
+        // Use the label system for other actions
+        const labels = {
+          hide: 'tribe-hidden',
+          promote: 'village-promoted', // Fallback if no villageSlug
+          feature: 'village-featured',
+        };
+
+        const label = labels[action];
+        const namespace = action === 'hide' ? 'moderation' : 'promotion';
+
+        createLabel({
+          eventId,
+          label,
+          namespace,
+          content: reason.trim() || undefined,
+        }, {
+          onSuccess: (result) => {
+            publishEvent(result.eventData, {
+              onSuccess: () => {
+                const messages = {
+                  hide: 'Event has been hidden from tribe feed.',
+                  promote: 'Event has been promoted to village.',
+                  feature: 'Event has been featured in village.',
+                };
+
+                toast({
+                  title: "Action completed",
+                  description: messages[action],
+                });
+
+                if (action === 'promote' && onPromote) {
+                  onPromote();
+                }
+
+                setOpen(false);
+                setReason('');
+              },
+              onError: (error) => {
+                console.error('Failed to publish moderation action:', error);
+                toast({
+                  title: "Failed to publish",
+                  description: "Moderation action couldn't be published. Please try again.",
+                  variant: "destructive",
+                });
+              },
+            });
+          },
+          onError: (error) => {
+            console.error('Failed to create moderation label:', error);
+            toast({
+              title: "Moderation failed",
+              description: "Failed to create moderation action. Please try again.",
+              variant: "destructive",
+            });
+          },
+        });
       }
-
-      // Build new tags array, replacing village tags
-      const newTags = event.tags
-        .filter(([name]) => name !== 'village') // Remove existing village tags
-        .concat(villages.map(village => ['village', village])); // Add new village tags
-
-      const updatedEvent = {
-        kind: event.kind,
-        content: event.content,
-        tags: newTags,
-        created_at: Math.floor(Date.now() / 1000),
-      };
-
-      publishEvent(updatedEvent, {
-        onSuccess: () => {
-          toast({
-            title: "Event promoted",
-            description: `Event is now visible in ${villages.length} village(s).`,
-          });
-          setOpen(false);
-        },
-        onError: (error) => {
-          console.error('Failed to promote event:', error);
-          toast({
-            title: "Promotion failed",
-            description: "Failed to promote event to villages. Please try again.",
-            variant: "destructive",
-          });
-        },
-      });
     } catch (error) {
-      console.error('Event promotion error:', error);
+      console.error('Moderation error:', error);
       toast({
         title: "Error",
         description: "An unexpected error occurred.",
         variant: "destructive",
       });
-    }
-  };
-
-  const handleKeyPress = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter') {
-      e.preventDefault();
-      addVillage();
     }
   };
 
@@ -132,10 +184,10 @@ export function EventModerationDialog({ children, event }: EventModerationDialog
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Settings className="h-5 w-5" />
-            Promote Event to Villages
+            Moderate Event
           </DialogTitle>
           <DialogDescription>
-            Make this event visible in village feeds by adding village associations.
+            Manage how this event appears in the tribe and village
           </DialogDescription>
         </DialogHeader>
 
@@ -144,119 +196,89 @@ export function EventModerationDialog({ children, event }: EventModerationDialog
           <Card className="bg-muted/50">
             <CardContent className="p-4">
               <h4 className="font-medium text-sm truncate">{eventTitle}</h4>
+              <p className="text-xs text-muted-foreground mt-1 line-clamp-2">
+                {event.content}
+              </p>
               <p className="text-xs text-muted-foreground mt-1">
                 by {event.pubkey.slice(0, 8)}...
               </p>
             </CardContent>
           </Card>
 
-          {/* Current villages */}
-          <div className="space-y-3">
-            <Label>Villages</Label>
-            {villages.length > 0 ? (
-              <div className="flex flex-wrap gap-2">
-                {villages.map((village) => (
-                  <Badge
-                    key={village}
-                    variant="secondary"
-                    className="flex items-center gap-1 pr-1"
-                  >
-                    🏘️ {village}
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="h-4 w-4 p-0 hover:bg-destructive hover:text-destructive-foreground"
-                      onClick={() => removeVillage(village)}
-                    >
-                      <X className="h-3 w-3" />
-                    </Button>
-                  </Badge>
-                ))}
-              </div>
-            ) : (
-              <Card className="border-dashed">
-                <CardContent className="py-6 px-4 text-center">
-                  <div className="text-muted-foreground text-sm">
-                    No villages selected
-                  </div>
-                </CardContent>
-              </Card>
-            )}
-          </div>
-
-          {/* Add new village */}
-          <div className="space-y-3">
-            <Label htmlFor="new-village">Add Village</Label>
-            <div className="flex gap-2">
-              <Input
-                id="new-village"
-                value={newVillage}
-                onChange={(e) => setNewVillage(e.target.value)}
-                onKeyPress={handleKeyPress}
-                placeholder="e.g., downtown, eastside, ferndale"
-                className="flex-1"
-              />
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={addVillage}
-                disabled={!newVillage.trim()}
-              >
-                <Plus className="h-4 w-4" />
-              </Button>
-            </div>
-          </div>
-
-          {/* Common villages suggestions */}
+          {/* Reason field */}
           <div className="space-y-2">
-            <Label className="text-sm">Common Villages</Label>
-            <div className="flex flex-wrap gap-1">
-              {['downtown', 'eastside', 'westside', 'northside', 'southside', 'midtown'].map((suggestion) => (
-                <Button
-                  key={suggestion}
-                  variant="outline"
-                  size="sm"
-                  className="text-xs h-7"
-                  onClick={() => {
-                    if (!villages.includes(suggestion)) {
-                      setVillages([...villages, suggestion]);
-                    }
-                  }}
-                  disabled={villages.includes(suggestion)}
-                >
-                  {suggestion}
-                </Button>
-              ))}
-            </div>
+            <Label htmlFor="reason">Reason (Optional)</Label>
+            <Textarea
+              id="reason"
+              value={reason}
+              onChange={(e) => setReason(e.target.value)}
+              placeholder="Explain why you're taking this action..."
+              rows={3}
+            />
           </div>
 
           <Separator />
 
-          {/* Actions */}
+          {/* Moderation actions */}
+          <div className="space-y-3">
+            <h4 className="font-medium text-sm">Actions</h4>
+
+            <div className="space-y-2">
+              <Button
+                variant="outline"
+                className="w-full justify-start"
+                onClick={() => handleModeration('hide')}
+                disabled={isCreatingLabel || isPromoting}
+              >
+                {(isCreatingLabel || isPromoting) ? (
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                ) : (
+                  <EyeOff className="h-4 w-4 mr-2" />
+                )}
+                Hide from Tribe Feed
+              </Button>
+
+              {villageSlug && (
+                <Button
+                  variant="outline"
+                  className="w-full justify-start"
+                  onClick={() => handleModeration('promote')}
+                  disabled={isCreatingLabel || isPromoting}
+                >
+                  {(isCreatingLabel || isPromoting) ? (
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  ) : (
+                    <Eye className="h-4 w-4 mr-2" />
+                  )}
+                  Promote to Village
+                </Button>
+              )}
+
+              {villageSlug && (
+                <Button
+                  variant="outline"
+                  className="w-full justify-start"
+                  onClick={() => handleModeration('feature')}
+                  disabled={isCreatingLabel || isPromoting}
+                >
+                  {(isCreatingLabel || isPromoting) ? (
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  ) : (
+                    <Star className="h-4 w-4 mr-2" />
+                  )}
+                  Feature in Village
+                </Button>
+              )}
+            </div>
+          </div>
+
           <div className="flex justify-end gap-3 pt-4">
             <Button
               variant="outline"
               onClick={() => setOpen(false)}
-              disabled={isPending}
+              disabled={isCreatingLabel || isPromoting}
             >
               Cancel
-            </Button>
-            <Button
-              onClick={handlePromoteToVillages}
-              disabled={isPending || villages.length === 0}
-            >
-              {isPending ? (
-                <>
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                  Promoting...
-                </>
-              ) : (
-                <>
-                  <Eye className="h-4 w-4 mr-2" />
-                  Promote to Villages
-                </>
-              )}
             </Button>
           </div>
         </div>

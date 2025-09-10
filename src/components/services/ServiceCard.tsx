@@ -7,6 +7,7 @@ import { ProfileZapDialog } from '@/components/ProfileZapDialog';
 import { DMDialog } from '@/components/DMDialog';
 import { ServiceModerationDialog } from './ServiceModerationDialog';
 import { ServicePromotionDialog } from './ServicePromotionDialog';
+import { TribeName } from '@/components/tribes/TribeName';
 import { useAuthor } from '@/hooks/useAuthor';
 import { useCurrentUser } from '@/hooks/useCurrentUser';
 import { useUserBadgeAwards } from '@/hooks/useBadges';
@@ -142,6 +143,10 @@ export function ServiceCard({ event, userLocation, className, tribeId, showModer
                   {getCategoryIcon(serviceData.category)} {serviceData.category}
                 </Badge>
 
+                {serviceData.tribe && (
+                  <TribeName tribeTag={serviceData.tribe} />
+                )}
+
                 {distance && (
                   <div className="flex items-center text-xs text-muted-foreground">
                     <MapPin className="h-3 w-3 mr-1" />
@@ -207,7 +212,7 @@ export function ServiceCard({ event, userLocation, className, tribeId, showModer
             {/* Admin moderation controls */}
             {(showModerationControls || isModerator) && (
               <>
-                <ServiceModerationDialog serviceEvent={event}>
+                <ServiceModerationDialog service={event}>
                   <Button size="sm" variant="outline" className="text-destructive hover:text-destructive">
                     <Shield className="h-4 w-4" />
                   </Button>

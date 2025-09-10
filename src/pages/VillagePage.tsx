@@ -4,7 +4,7 @@ import { useParams } from 'react-router-dom';
 import { useNostr } from '@nostrify/react';
 import { useVillageStories, useMultiVillageStories } from '@/hooks/useStories';
 import { useVillageServices } from '@/hooks/useServices';
-// TODO: Create useVillageEvents hook for village-specific events
+import { useVillageEvents } from '@/hooks/useEvents';
 import { useCurrentUser } from '@/hooks/useCurrentUser';
 import { useVillagePreferences } from '@/hooks/useVillagePreferences';
 import { StoryCard } from '@/components/stories/StoryCard';
@@ -83,9 +83,9 @@ const VillagePage = () => {
     search: search.trim() || undefined,
   });
 
-  // TODO: Implement village events hook
-  const events: NostrEvent[] = []; // Placeholder
-  const eventsLoading = false;
+  const { data: events, isLoading: eventsLoading } = useVillageEvents(currentVillage, {
+    search: search.trim() || undefined,
+  });
 
   const isLoading = storiesLoading || servicesLoading || eventsLoading;
 
@@ -113,8 +113,10 @@ const VillagePage = () => {
 
   const filteredContent = filterByTime(allContent);
 
-  // Get featured stories (placeholder - would check for labels)
-  const featuredStories = (stories || []).slice(0, 3);
+  // Get featured stories (stories with village tags are considered "featured")
+  const featuredStories = (stories || [])
+    .filter(story => story.tags.some(([name]) => name === 'village'))
+    .slice(0, 6);
 
   const renderContent = (content: (NostrEvent & { type: 'story' | 'service' | 'event' })[]) => {
     if (content.length === 0) {
@@ -171,6 +173,7 @@ const VillagePage = () => {
                   story={item}
                   showVillageTag={false}
                   showTribeTag={true}
+                  showHideTribeOption={true}
                 />
               );
             case 'service':
@@ -236,10 +239,11 @@ const VillagePage = () => {
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               {featuredStories.map((story) => (
                 <StoryCard
-                  key={story.id}
+                  key={`featured-${story.id}`}
                   story={story}
-                  showVillageTag={false}
+                  showVillageTag={true}
                   showTribeTag={true}
+                  showHideTribeOption={true}
                   className="border-yellow-200 bg-gradient-to-br from-yellow-50 to-orange-50 dark:from-yellow-950/20 dark:to-orange-950/20"
                 />
               ))}
@@ -416,7 +420,7 @@ const VillagePage = () => {
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{stories?.length || 0}</div>
+              <div className="text-2xl font-bold">{filteredStories.length}</div>
             </CardContent>
           </Card>
 
@@ -428,7 +432,7 @@ const VillagePage = () => {
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{events?.length || 0}</div>
+              <div className="text-2xl font-bold">{filteredEvents.length}</div>
             </CardContent>
           </Card>
 
@@ -440,7 +444,7 @@ const VillagePage = () => {
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{services?.length || 0}</div>
+              <div className="text-2xl font-bold">{filteredServices.length}</div>
             </CardContent>
           </Card>
         </div>
@@ -478,7 +482,11 @@ interface DebugData {
   queries: Record<string, DebugQueryResult>;
   clientSideFiltering: {
     totalStories: number;
+    totalServices: number;
+    totalEvents: number;
     storiesWithVillageTags: number;
+    servicesWithVillageTags: number;
+    eventsWithVillageTags: number;
     villageTaggedStories: DebugEvent[];
     debugStories?: {
       id: string;
@@ -525,7 +533,11 @@ function VillageDebugTool({
         queries: {},
         clientSideFiltering: {
           totalStories: 0,
+          totalServices: 0,
+          totalEvents: 0,
           storiesWithVillageTags: 0,
+          servicesWithVillageTags: 0,
+          eventsWithVillageTags: 0,
           villageTaggedStories: []
         },
         hookSimulation: {
@@ -535,12 +547,13 @@ function VillageDebugTool({
         }
       };
 
-      // 1. Query all stories (no filtering)
-      console.log('🔍 Testing query: All stories');
-      const allStories = await nostr.query([{
-        kinds: [30023],
-        limit: 100
-      }], { signal });
+      // 1. Query all content types (no filtering)
+      console.log('🔍 Testing queries: All stories, services, events');
+      const [allStories, allServices, allEvents] = await Promise.all([
+        nostr.query([{ kinds: [30023], limit: 100 }], { signal }),
+        nostr.query([{ kinds: [38857, 30627], limit: 100 }], { signal }),
+        nostr.query([{ kinds: [31923], limit: 100 }], { signal })
+      ]);
 
       // Check if we're getting the same author as the tribe debug
       const authorCounts = allStories.reduce((acc, story) => {
@@ -580,16 +593,63 @@ function VillageDebugTool({
         }))
       };
 
-      // 2. Query with #village filter for "mack-eastside"
-      console.log('🔍 Testing query: #village mack-eastside filter');
-      const villageTaggedStories = await nostr.query([{
-        kinds: [30023],
-        '#village': ['mack-eastside'],
-        limit: 100
-      }], { signal });
-      results.queries.villageTagged = {
-        count: villageTaggedStories.length,
-        events: villageTaggedStories.slice(0, 3).map(e => ({
+      results.queries.allServices = {
+        count: allServices.length,
+        events: allServices.slice(0, 3).map(e => ({
+          id: e.id.slice(0, 8),
+          author: e.pubkey.slice(0, 8),
+          title: e.kind === 38857 ? 'Service Offer' : 'Service Request',
+          tags: e.tags.filter(([name]) => name === 'village').map(([, value]) => value),
+          allTags: e.tags.map(([name, value]) => `${name}:${value}`).slice(0, 10)
+        }))
+      };
+
+      results.queries.allEvents = {
+        count: allEvents.length,
+        events: allEvents.slice(0, 3).map(e => ({
+          id: e.id.slice(0, 8),
+          author: e.pubkey.slice(0, 8),
+          title: e.tags.find(([name]) => name === 'title')?.[1] || 'No title',
+          tags: e.tags.filter(([name]) => name === 'village').map(([, value]) => value),
+          allTags: e.tags.map(([name, value]) => `${name}:${value}`).slice(0, 10)
+        }))
+      };
+
+      // 2. Query with #village filter for current village
+      const testVillage = villagesToQuery.length > 0 ? villagesToQuery[0] : 'mack-eastside';
+      console.log('🔍 Testing query: #village filter for', testVillage);
+
+      const [villageStories, villageServices, villageEvents] = await Promise.all([
+        nostr.query([{ kinds: [30023], '#village': [testVillage], limit: 100 }], { signal }),
+        nostr.query([{ kinds: [38857, 30627], '#village': [testVillage], limit: 100 }], { signal }),
+        nostr.query([{ kinds: [31923], '#village': [testVillage], limit: 100 }], { signal })
+      ]);
+
+      results.queries.villageStories = {
+        count: villageStories.length,
+        events: villageStories.slice(0, 3).map(e => ({
+          id: e.id.slice(0, 8),
+          author: e.pubkey.slice(0, 8),
+          title: e.tags.find(([name]) => name === 'title')?.[1] || 'No title',
+          tags: e.tags.filter(([name]) => name === 'village').map(([, value]) => value),
+          allTags: e.tags.map(([name, value]) => `${name}:${value}`).slice(0, 10)
+        }))
+      };
+
+      results.queries.villageServices = {
+        count: villageServices.length,
+        events: villageServices.slice(0, 3).map(e => ({
+          id: e.id.slice(0, 8),
+          author: e.pubkey.slice(0, 8),
+          title: e.kind === 38857 ? 'Service Offer' : 'Service Request',
+          tags: e.tags.filter(([name]) => name === 'village').map(([, value]) => value),
+          allTags: e.tags.map(([name, value]) => `${name}:${value}`).slice(0, 10)
+        }))
+      };
+
+      results.queries.villageEvents = {
+        count: villageEvents.length,
+        events: villageEvents.slice(0, 3).map(e => ({
           id: e.id.slice(0, 8),
           author: e.pubkey.slice(0, 8),
           title: e.tags.find(([name]) => name === 'title')?.[1] || 'No title',
@@ -638,6 +698,14 @@ function VillageDebugTool({
         story.tags.some(([name]) => name === 'village')
       );
 
+      const servicesWithVillageTags = allServices.filter(service =>
+        service.tags.some(([name]) => name === 'village')
+      );
+
+      const eventsWithVillageTags = allEvents.filter(event =>
+        event.tags.some(([name]) => name === 'village')
+      );
+
       // Debug: Show ALL tag types in first few stories
       const debugStories = allStories.slice(0, 5).map(e => ({
         id: e.id.slice(0, 8),
@@ -650,7 +718,11 @@ function VillageDebugTool({
 
       results.clientSideFiltering = {
         totalStories: allStories.length,
+        totalServices: allServices.length,
+        totalEvents: allEvents.length,
         storiesWithVillageTags: storiesWithVillageTags.length,
+        servicesWithVillageTags: servicesWithVillageTags.length,
+        eventsWithVillageTags: eventsWithVillageTags.length,
         villageTaggedStories: storiesWithVillageTags.map(e => ({
           id: e.id.slice(0, 8),
           title: e.tags.find(([name]) => name === 'title')?.[1] || 'No title',
@@ -663,23 +735,23 @@ function VillageDebugTool({
 
       // 5. Test current useVillageStories hook behavior (simplified logic)
       console.log('🔍 Testing simplified hook behavior simulation');
-      const testVillage = 'main'; // Test with main village (shows all)
+      const simulationVillage = 'main'; // Test with main village (shows all)
       const hookSimulation = allStories.filter(event => {
         // For main village page, show all village content
-        if (testVillage === 'main') {
+        if (simulationVillage === 'main') {
           // Check for explicit village tags (any village)
           const villageTags = event.tags.filter(([name]) => name === 'village');
           return villageTags.length > 0;
         } else {
           // For specific village pages, filter by that village
           const villageTags = event.tags.filter(([name]) => name === 'village');
-          return villageTags.some(([, value]) => value === testVillage);
+          return villageTags.some(([, value]) => value === simulationVillage);
         }
       });
 
       results.hookSimulation = {
         count: hookSimulation.length,
-        testVillage,
+        testVillage: simulationVillage,
         events: hookSimulation.map(e => ({
           id: e.id.slice(0, 8),
           title: e.tags.find(([name]) => name === 'title')?.[1] || 'No title',
@@ -698,7 +770,15 @@ function VillageDebugTool({
       setDebugData({
         timestamp: new Date().toISOString(),
         queries: {},
-        clientSideFiltering: { totalStories: 0, storiesWithVillageTags: 0, villageTaggedStories: [] },
+        clientSideFiltering: {
+          totalStories: 0,
+          totalServices: 0,
+          totalEvents: 0,
+          storiesWithVillageTags: 0,
+          servicesWithVillageTags: 0,
+          eventsWithVillageTags: 0,
+          villageTaggedStories: []
+        },
         hookSimulation: { count: 0, testVillage: '', events: [] },
         error: error instanceof Error ? error.message : 'Unknown error'
       });
@@ -768,19 +848,25 @@ function VillageDebugTool({
                     All Stories: {debugData.queries?.allStories?.count || 0}
                   </div>
                   <div className="font-mono">
+                    All Services: {debugData.queries?.allServices?.count || 0}
+                  </div>
+                  <div className="font-mono">
+                    All Events: {debugData.queries?.allEvents?.count || 0}
+                  </div>
+                  <div className="font-mono">
                     Stories by tribe author: {debugData.queries?.authorStories?.count || 0}
                   </div>
                   <div className="font-mono">
-                    #village:mack-eastside: {debugData.queries?.villageTagged?.count || 0}
+                    Village Stories: {debugData.queries?.villageStories?.count || 0}
+                  </div>
+                  <div className="font-mono">
+                    Village Services: {debugData.queries?.villageServices?.count || 0}
+                  </div>
+                  <div className="font-mono">
+                    Village Events: {debugData.queries?.villageEvents?.count || 0}
                   </div>
                   <div className="font-mono">
                     Promotion labels: {debugData.queries?.promotionLabels?.count || 0}
-                  </div>
-                  <div className="font-mono">
-                    #t:mack-eastside: {debugData.queries?.village_mackeastside?.count || 0}
-                  </div>
-                  <div className="font-mono">
-                    #t:ferndale: {debugData.queries?.village_ferndale?.count || 0}
                   </div>
                 </div>
 
@@ -788,6 +874,15 @@ function VillageDebugTool({
                   <div className="font-medium">Client-side Analysis:</div>
                   <div className="font-mono">
                     Stories with village tags: {debugData.clientSideFiltering?.storiesWithVillageTags || 0}
+                  </div>
+                  <div className="font-mono">
+                    Services with village tags: {debugData.clientSideFiltering?.servicesWithVillageTags || 0}
+                  </div>
+                  <div className="font-mono">
+                    Events with village tags: {debugData.clientSideFiltering?.eventsWithVillageTags || 0}
+                  </div>
+                  <div className="font-mono">
+                    Hidden tribes: {preferences.hiddenTribes.length > 0 ? preferences.hiddenTribes.join(', ') : 'None'}
                   </div>
                   <div className="font-mono">
                     Hook simulation: {debugData.hookSimulation?.count || 0}

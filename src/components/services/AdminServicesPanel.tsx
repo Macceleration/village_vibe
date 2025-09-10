@@ -270,7 +270,7 @@ function AdminServiceCard({ service, isSelected, onSelect, onDeselect, type }: A
               </Badge>
             )}
 
-            <ServiceModerationDialog serviceEvent={service}>
+            <ServiceModerationDialog service={service}>
               <Button size="sm" variant="outline" onClick={(e) => e.stopPropagation()}>
                 <Shield className="h-4 w-4" />
               </Button>

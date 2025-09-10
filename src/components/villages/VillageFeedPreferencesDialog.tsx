@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useVillagePreferences } from '@/hooks/useVillagePreferences';
+import { useTribeName } from '@/hooks/useTribes';
 import {
   Dialog,
   DialogContent,
@@ -24,8 +25,8 @@ interface VillageFeedPreferencesDialogProps {
 
 export function VillageFeedPreferencesDialog({ children }: VillageFeedPreferencesDialogProps) {
   const { toast } = useToast();
-  const { preferences, addVillage, removeVillage, toggleShowAll, clearAll } = useVillagePreferences();
-  
+  const { preferences, addVillage, removeVillage, toggleShowAll, clearAll, showTribe } = useVillagePreferences();
+
   const [open, setOpen] = useState(false);
   const [newVillage, setNewVillage] = useState('');
 
@@ -61,6 +62,14 @@ export function VillageFeedPreferencesDialog({ children }: VillageFeedPreference
     toast({
       title: "Preferences reset",
       description: "Now showing content from all villages.",
+    });
+  };
+
+  const handleShowTribe = (tribeTag: string) => {
+    showTribe(tribeTag);
+    toast({
+      title: "Tribe unhidden",
+      description: "Content from this tribe will now appear in your feed.",
     });
   };
 
@@ -113,7 +122,7 @@ export function VillageFeedPreferencesDialog({ children }: VillageFeedPreference
                 </Button>
               )}
             </div>
-            
+
             {preferences.selectedVillages.length > 0 ? (
               <div className="flex flex-wrap gap-2">
                 {preferences.selectedVillages.map((village) => (
@@ -138,8 +147,8 @@ export function VillageFeedPreferencesDialog({ children }: VillageFeedPreference
               <Card className="border-dashed">
                 <CardContent className="py-6 px-4 text-center">
                   <div className="text-muted-foreground text-sm">
-                    {preferences.showAllVillages 
-                      ? "Showing all villages" 
+                    {preferences.showAllVillages
+                      ? "Showing all villages"
                       : "No specific villages selected"
                     }
                   </div>
@@ -202,6 +211,28 @@ export function VillageFeedPreferencesDialog({ children }: VillageFeedPreference
             </div>
           )}
 
+          {/* Hidden tribes */}
+          {preferences.hiddenTribes.length > 0 && (
+            <>
+              <Separator />
+              <div className="space-y-3">
+                <Label>Hidden Tribes</Label>
+                <p className="text-xs text-muted-foreground">
+                  Content from these tribes won't appear in your village feed
+                </p>
+                <div className="flex flex-wrap gap-2">
+                  {preferences.hiddenTribes.map((tribeTag) => (
+                    <HiddenTribeItem
+                      key={tribeTag}
+                      tribeTag={tribeTag}
+                      onShow={() => handleShowTribe(tribeTag)}
+                    />
+                  ))}
+                </div>
+              </div>
+            </>
+          )}
+
           {/* Current status */}
           <div className="bg-muted/50 p-3 rounded-lg text-sm">
             <div className="flex items-center gap-2 mb-1">
@@ -209,7 +240,7 @@ export function VillageFeedPreferencesDialog({ children }: VillageFeedPreference
               <span className="font-medium">Current Setting:</span>
             </div>
             <p className="text-muted-foreground">
-              {preferences.showAllVillages 
+              {preferences.showAllVillages
                 ? "Showing content from all villages"
                 : preferences.selectedVillages.length === 0
                   ? "No villages selected - feed will be empty"
@@ -227,5 +258,29 @@ export function VillageFeedPreferencesDialog({ children }: VillageFeedPreference
         </div>
       </DialogContent>
     </Dialog>
+  );
+}
+
+// Component to display a hidden tribe with option to unhide
+function HiddenTribeItem({ tribeTag, onShow }: { tribeTag: string; onShow: () => void }) {
+  const { data: tribeData } = useTribeName(tribeTag);
+  const displayName = tribeData?.name || tribeTag;
+
+  return (
+    <Badge
+      variant="secondary"
+      className="flex items-center gap-1 pr-1 opacity-60"
+    >
+      🚫 {displayName}
+      <Button
+        variant="ghost"
+        size="sm"
+        className="h-4 w-4 p-0 hover:bg-green-500 hover:text-white"
+        onClick={onShow}
+        title="Show content from this tribe"
+      >
+        <Plus className="h-3 w-3" />
+      </Button>
+    </Badge>
   );
 }

@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useCreateStoryLabel } from '@/hooks/useStories';
+import { useCreateStoryLabel, usePromoteStoryToVillages } from '@/hooks/useStories';
 import { useNostrPublish } from '@/hooks/useNostrPublish';
 import { useCurrentUser } from '@/hooks/useCurrentUser';
 import {
@@ -35,6 +35,7 @@ export function StoryModerationDialog({
   const { user } = useCurrentUser();
   const { toast } = useToast();
   const { mutate: createLabel, isPending: isCreatingLabel } = useCreateStoryLabel();
+  const { mutate: promoteToVillages, isPending: isPromoting } = usePromoteStoryToVillages();
   const { mutate: publishEvent } = useNostrPublish();
 
   const [open, setOpen] = useState(false);
@@ -53,62 +54,117 @@ export function StoryModerationDialog({
       return;
     }
 
-    const labels = {
-      hide: 'tribe-hidden',
-      promote: 'village-promoted',
-      feature: 'village-featured',
-    };
-
-    const label = labels[action];
-    const namespace = action === 'hide' ? 'moderation' : 'promotion';
-
     try {
-      createLabel({
-        storyId,
-        label,
-        namespace,
-        content: reason.trim() || undefined,
-      }, {
-        onSuccess: (result) => {
-          publishEvent(result.eventData, {
-            onSuccess: () => {
-              const messages = {
-                hide: 'Story has been hidden from tribe feed.',
-                promote: 'Story has been promoted to village.',
-                feature: 'Story has been featured in village.',
-              };
-
+      if (action === 'promote' && villageSlug) {
+        // Use the new promotion system that adds village tags directly
+        promoteToVillages({
+          story,
+          villages: [villageSlug],
+          reason: reason.trim() || undefined,
+        }, {
+          onSuccess: (result) => {
+            // Publish both the updated story and the promotion label
+            Promise.all([
+              new Promise((resolve, reject) => {
+                publishEvent(result.updatedStory, {
+                  onSuccess: resolve,
+                  onError: reject,
+                });
+              }),
+              new Promise((resolve, reject) => {
+                publishEvent(result.promotionLabel, {
+                  onSuccess: resolve,
+                  onError: reject,
+                });
+              }),
+            ]).then(() => {
               toast({
-                title: "Action completed",
-                description: messages[action],
+                title: "Story promoted",
+                description: `Story has been promoted to ${villageSlug} village and will now appear in the village feed.`,
               });
 
-              if (action === 'promote' && onPromote) {
+              if (onPromote) {
                 onPromote();
               }
 
               setOpen(false);
               setReason('');
-            },
-            onError: (error) => {
-              console.error('Failed to publish moderation action:', error);
+            }).catch((error) => {
+              console.error('Failed to publish promotion:', error);
               toast({
                 title: "Failed to publish",
-                description: "Moderation action couldn't be published. Please try again.",
+                description: "Story promotion couldn't be published. Please try again.",
                 variant: "destructive",
               });
-            },
-          });
-        },
-        onError: (error) => {
-          console.error('Failed to create moderation label:', error);
-          toast({
-            title: "Moderation failed",
-            description: "Failed to create moderation action. Please try again.",
-            variant: "destructive",
-          });
-        },
-      });
+            });
+          },
+          onError: (error) => {
+            console.error('Failed to promote story:', error);
+            toast({
+              title: "Promotion failed",
+              description: "Failed to promote story. Please try again.",
+              variant: "destructive",
+            });
+          },
+        });
+      } else {
+        // Use the label system for other actions
+        const labels = {
+          hide: 'tribe-hidden',
+          promote: 'village-promoted', // Fallback if no villageSlug
+          feature: 'village-featured',
+        };
+
+        const label = labels[action];
+        const namespace = action === 'hide' ? 'moderation' : 'promotion';
+
+        createLabel({
+          storyId,
+          label,
+          namespace,
+          content: reason.trim() || undefined,
+        }, {
+          onSuccess: (result) => {
+            publishEvent(result.eventData, {
+              onSuccess: () => {
+                const messages = {
+                  hide: 'Story has been hidden from tribe feed.',
+                  promote: 'Story has been promoted to village.',
+                  feature: 'Story has been featured in village.',
+                };
+
+                toast({
+                  title: "Action completed",
+                  description: messages[action],
+                });
+
+                if (action === 'promote' && onPromote) {
+                  onPromote();
+                }
+
+                setOpen(false);
+                setReason('');
+              },
+              onError: (error) => {
+                console.error('Failed to publish moderation action:', error);
+                toast({
+                  title: "Failed to publish",
+                  description: "Moderation action couldn't be published. Please try again.",
+                  variant: "destructive",
+                });
+              },
+            });
+          },
+          onError: (error) => {
+            console.error('Failed to create moderation label:', error);
+            toast({
+              title: "Moderation failed",
+              description: "Failed to create moderation action. Please try again.",
+              variant: "destructive",
+            });
+          },
+        });
+      }
     } catch (error) {
       console.error('Moderation error:', error);
       toast({
@@ -169,9 +225,9 @@ export function StoryModerationDialog({
                 variant="outline"
                 className="w-full justify-start"
                 onClick={() => handleModeration('hide')}
-                disabled={isCreatingLabel}
+                disabled={isCreatingLabel || isPromoting}
               >
-                {isCreatingLabel ? (
+                {(isCreatingLabel || isPromoting) ? (
                   <Loader2 className="h-4 w-4 mr-2 animate-spin" />
                 ) : (
                   <EyeOff className="h-4 w-4 mr-2" />
@@ -184,9 +240,9 @@ export function StoryModerationDialog({
                   variant="outline"
                   className="w-full justify-start"
                   onClick={() => handleModeration('promote')}
-                  disabled={isCreatingLabel}
+                  disabled={isCreatingLabel || isPromoting}
                 >
-                  {isCreatingLabel ? (
+                  {(isCreatingLabel || isPromoting) ? (
                     <Loader2 className="h-4 w-4 mr-2 animate-spin" />
                   ) : (
                     <Eye className="h-4 w-4 mr-2" />
@@ -200,9 +256,9 @@ export function StoryModerationDialog({
                   variant="outline"
                   className="w-full justify-start"
                   onClick={() => handleModeration('feature')}
-                  disabled={isCreatingLabel}
+                  disabled={isCreatingLabel || isPromoting}
                 >
-                  {isCreatingLabel ? (
+                  {(isCreatingLabel || isPromoting) ? (
                     <Loader2 className="h-4 w-4 mr-2 animate-spin" />
                   ) : (
                     <Star className="h-4 w-4 mr-2" />
@@ -217,7 +273,7 @@ export function StoryModerationDialog({
             <Button
               variant="outline"
               onClick={() => setOpen(false)}
-              disabled={isCreatingLabel}
+              disabled={isCreatingLabel || isPromoting}
             >
               Cancel
             </Button>
