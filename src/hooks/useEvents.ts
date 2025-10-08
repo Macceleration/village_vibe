@@ -57,31 +57,81 @@ export function useTribeEvents(tribeId: string, filters: EventFilters = {}) {
 
       // Parse tribe coordinates
       const [pubkey, dTag] = tribeId.split(':');
-      if (!pubkey || !dTag) return [];
+      if (!pubkey || !dTag) {
+        console.log('🔍 Invalid tribe ID format:', tribeId);
+        return [];
+      }
 
-      console.log('🔍 Querying events for tribe:', { tribeId, dTag });
+      console.log('🔍 Querying events for tribe:', { tribeId, pubkey, dTag });
 
-      // Query for enhanced events (kind 36959) that reference this tribe
-      const enhancedEvents = await nostr.query([
-        {
-          kinds: [36959], // Enhanced events
-          '#tribe': [dTag],
-          limit: filters.limit || 100,
+      let enhancedEvents: NostrEvent[] = [];
+      let legacyEvents: NostrEvent[] = [];
+
+      // Try multiple query strategies for enhanced events
+      try {
+        // Strategy 1: Query by dTag only (how events are currently created)
+        enhancedEvents = await nostr.query([
+          {
+            kinds: [36959], // Enhanced events
+            '#tribe': [dTag],
+            limit: filters.limit || 100,
+          }
+        ], { signal });
+        console.log('📦 Enhanced events (dTag):', enhancedEvents.length);
+
+        // Strategy 2: If no results, try full tribe ID
+        if (enhancedEvents.length === 0) {
+          const enhancedEventsFull = await nostr.query([
+            {
+              kinds: [36959], // Enhanced events
+              '#tribe': [tribeId],
+              limit: filters.limit || 100,
+            }
+          ], { signal });
+          console.log('📦 Enhanced events (full tribeId):', enhancedEventsFull.length);
+          enhancedEvents = enhancedEventsFull;
         }
-      ], { signal });
+      } catch (err) {
+        console.log('⚠️ Enhanced events query failed:', err);
+      }
 
-      console.log('📦 Found enhanced events:', enhancedEvents.length);
+      // Try multiple query strategies for legacy events
+      try {
+        // Strategy 1: Query by #a tag with tribe reference
+        legacyEvents = await nostr.query([
+          {
+            kinds: [31923], // Time-based calendar events (NIP-52)
+            '#a': [`34550:${pubkey}:${dTag}`], // Reference to tribe
+            limit: 50,
+          }
+        ], { signal });
+        console.log('📦 Legacy events (#a tag):', legacyEvents.length);
 
-      // Also query legacy calendar events for backward compatibility
-      const legacyEvents = await nostr.query([
-        {
-          kinds: [31923], // Time-based calendar events (NIP-52)
-          '#a': [`34550:${pubkey}:${dTag}`], // Reference to tribe
-          limit: 50,
+        // Strategy 2: If no results, try querying all legacy events by author
+        if (legacyEvents.length === 0) {
+          const legacyEventsByAuthor = await nostr.query([
+            {
+              kinds: [31923], // Time-based calendar events (NIP-52)
+              authors: [pubkey],
+              limit: 50,
+            }
+          ], { signal });
+          console.log('📦 Legacy events (by author):', legacyEventsByAuthor.length);
+
+          // Filter for events that might be related to this tribe
+          legacyEvents = legacyEventsByAuthor.filter(event => {
+            // Check if event has any reference to the tribe dTag
+            return event.tags.some(([name, value]) =>
+              (name === 'd' && value === dTag) ||
+              (name === 'title' && value.toLowerCase().includes(dTag.toLowerCase())) ||
+              event.content.toLowerCase().includes(dTag.toLowerCase())
+            );
+          });
+          console.log('📦 Legacy events (filtered):', legacyEvents.length);
         }
-      ], { signal });
-
-      console.log('📦 Found legacy events:', legacyEvents.length);
+      } catch (err) {
+        console.log('⚠️ Legacy events query failed:', err);
+      }
 
       // Combine and validate events
       const allEvents = [...enhancedEvents, ...legacyEvents];
@@ -518,10 +568,15 @@ export function useCreateEnhancedEvent() {
       // Generate a unique d tag if not provided (for updates)
       const dTag = data.dTag || `event-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
 
+      // Parse tribeId to determine tribe tag format
+      // If tribe is in format "pubkey:dTag", use dTag part for tribe tag
+      // If tribe is just dTag, use it as-is
+      const tribeTagValue = data.tribe.includes(':') ? data.tribe.split(':')[1] : data.tribe;
+
       // Build tags array
       const tags: string[][] = [
         ['d', dTag],
-        ['tribe', data.tribe],
+        ['tribe', tribeTagValue], // Use dTag part for tribe tag
         ['title', data.title],
         ['start', data.start.toString()],
         ['place', data.place],
@@ -588,6 +643,12 @@ export function useCreateEnhancedEvent() {
       queryClient.invalidateQueries({
         queryKey: ['village-events']
       });
+
+      // Invalidate tribe-specific query using full tribeId
+      queryClient.invalidateQueries({
+        queryKey: ['tribe-events', variables.tribe]
+      });
+
       if (variables.villages) {
         variables.villages.forEach(village => {
           queryClient.invalidateQueries({
@@ -748,13 +809,15 @@ export function validateEnhancedEvent(event: NostrEvent): boolean {
   const [lat, lon] = locationParts.map(Number);
   if (isNaN(lat) || isNaN(lon)) return false;
 
-  // Validate event types
+  // Validate event types (OPTIONAL for backward compatibility with old events)
   const etypeTags = event.tags.filter(([name]) => name === 'etype');
-  if (etypeTags.length === 0) return false;
-
-  for (const [, etype] of etypeTags) {
-    if (!EVENT_TYPES.includes(etype as EventType)) return false;
+  if (etypeTags.length > 0) {
+    // If event has etype tags, validate them
+    for (const [, etype] of etypeTags) {
+      if (!EVENT_TYPES.includes(etype as EventType)) return false;
+    }
   }
+  // If no etype tags, event is still valid (backward compatibility)
 
   // Validate visibility
   const visibilityTag = event.tags.find(([name]) => name === 'visibility')?.[1];

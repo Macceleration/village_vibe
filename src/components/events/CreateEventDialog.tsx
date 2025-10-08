@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useCurrentUser } from "@/hooks/useCurrentUser";
 import { useUploadFile } from "@/hooks/useUploadFile";
+import { useNostrPublish } from "@/hooks/useNostrPublish";
 import { useCreateEnhancedEvent, useSendPrivateEventDetails, type EventType, type EventVisibility, getEventTypeInfo, EVENT_TYPES } from "@/hooks/useEvents";
 import { usePublicTribes } from "@/hooks/useTribes";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
@@ -62,6 +63,7 @@ export function CreateEventDialog({ children, tribeId }: CreateEventDialogProps)
   const { mutate: createEnhancedEvent, isPending: isCreating } = useCreateEnhancedEvent();
   const { mutate: sendPrivateDetails } = useSendPrivateEventDetails();
   const { mutateAsync: uploadFile, isPending: isUploading } = useUploadFile();
+  const { mutate: publishEvent } = useNostrPublish();
   const { toast } = useToast();
 
   const [open, setOpen] = useState(false);
@@ -149,8 +151,8 @@ export function CreateEventDialog({ children, tribeId }: CreateEventDialogProps)
       const durationMinutes = parseInt(formData.duration) || 60;
       const endTimestamp = startTimestamp + (durationMinutes * 60);
 
-      // Extract tribe slug from tribeId
-      const tribeSlug = tribeId.split(':')[1] || tribeId;
+      // Use full tribeId for tribe tag (format: pubkey:dTag)
+      const tribeSlug = tribeId; // Use full tribeId instead of just dTag
 
       // Build type-specific data
       const typeSpecificData: Record<string, string | string[]> = {};
@@ -233,6 +235,22 @@ export function CreateEventDialog({ children, tribeId }: CreateEventDialogProps)
         typeSpecificData,
       }, {
         onSuccess: (result) => {
+          // Publish the event to Nostr
+          console.log('📤 Publishing event to Nostr:', result.eventData);
+          publishEvent(result.eventData, {
+            onSuccess: (publishedEvent) => {
+              console.log('✅ Event published successfully:', publishedEvent);
+            },
+            onError: (publishError) => {
+              console.error('❌ Failed to publish event:', publishError);
+              toast({
+                title: "Publishing Error",
+                description: "Event was created but failed to publish to relay. Please try again.",
+                variant: "destructive",
+              });
+            },
+          });
+
           // Send private details via DM if this is a private event
           if (formData.visibility === 'private' && formData.sendDMs && formData.invitees.length > 0) {
             const privateDetailsText = formData.privateDetails.trim() || 'See you there!';

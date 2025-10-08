@@ -1,10 +1,12 @@
 import type { NostrEvent } from "@nostrify/nostrify";
 import { EventCard } from "../events/EventCard";
 import { CreateEventDialog } from "../events/CreateEventDialog";
+import { DebugEventsDialog } from "../events/DebugEventsDialog";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Plus, Calendar } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import { Plus, Calendar, Bug } from "lucide-react";
 
 interface TribeEventsProps {
   events: NostrEvent[];
@@ -62,76 +64,93 @@ export function TribeEvents({ events, isLoading, canCreateEvents, tribeId, isMod
     return bStart - aStart; // Most recent first
   });
 
-  if (events.length === 0) {
-    return (
-      <Card className="border-dashed">
-        <CardContent className="py-12 px-8 text-center">
-          <div className="max-w-sm mx-auto space-y-6">
-            <div className="text-4xl">📅</div>
-            <div className="space-y-2">
-              <h3 className="text-lg font-semibold">No events yet</h3>
-              <p className="text-muted-foreground">
-                {canCreateEvents
-                  ? "Create the first event for this tribe"
-                  : "This tribe hasn't scheduled any events yet"
-                }
-              </p>
+  return (
+    <div className="space-y-8">
+      {/* Debug Info - Always show for troubleshooting */}
+      <Card>
+        <CardContent className="py-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2 text-sm">
+              <Bug className="h-4 w-4" />
+              <span className="font-medium">Event Debug:</span>
+              <Badge variant="outline">{events.length} events found</Badge>
+              <span className="text-muted-foreground text-xs">
+                Tribe: {tribeId}
+              </span>
             </div>
-            {canCreateEvents && (
-              <CreateEventDialog tribeId={tribeId}>
-                <Button>
-                  <Plus className="h-4 w-4 mr-2" />
-                  Create First Event
-                </Button>
-              </CreateEventDialog>
-            )}
+            <DebugEventsDialog tribeId={tribeId} />
           </div>
         </CardContent>
       </Card>
-    );
-  }
 
-  return (
-    <div className="space-y-8">
-      {/* Upcoming Events */}
-      {upcomingEvents.length > 0 && (
-        <div className="space-y-4">
-          <div className="flex items-center gap-2">
-            <Calendar className="h-5 w-5" />
-            <h3 className="text-xl font-semibold">Upcoming Events</h3>
-            <span className="text-sm text-muted-foreground">({upcomingEvents.length})</span>
-          </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {upcomingEvents.map((event) => (
-              <EventCard
-                key={event.id}
-                event={event}
-                showModerationActions={isModerator}
-              />
-            ))}
-          </div>
-        </div>
-      )}
+      {events.length === 0 ? (
+        <Card className="border-dashed">
+          <CardContent className="py-12 px-8 text-center">
+            <div className="max-w-sm mx-auto space-y-6">
+              <div className="text-4xl">📅</div>
+              <div className="space-y-2">
+                <h3 className="text-lg font-semibold">No events yet</h3>
+                <p className="text-muted-foreground">
+                  {canCreateEvents
+                    ? "Create the first event for this tribe"
+                    : "This tribe hasn't scheduled any events yet"
+                  }
+                </p>
+              </div>
+              {canCreateEvents && (
+                <CreateEventDialog tribeId={tribeId}>
+                  <Button>
+                    <Plus className="h-4 w-4 mr-2" />
+                    Create First Event
+                  </Button>
+                </CreateEventDialog>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+      ) : (
+        <>
+          {/* Upcoming Events */}
+          {upcomingEvents.length > 0 && (
+            <div className="space-y-4">
+              <div className="flex items-center gap-2">
+                <Calendar className="h-5 w-5" />
+                <h3 className="text-xl font-semibold">Upcoming Events</h3>
+                <span className="text-sm text-muted-foreground">({upcomingEvents.length})</span>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {upcomingEvents.map((event) => (
+                  <EventCard
+                    key={event.id}
+                    event={event}
+                    showModerationActions={isModerator}
+                  />
+                ))}
+              </div>
+            </div>
+          )}
 
-      {/* Past Events */}
-      {pastEvents.length > 0 && (
-        <div className="space-y-4">
-          <div className="flex items-center gap-2">
-            <Calendar className="h-5 w-5 text-muted-foreground" />
-            <h3 className="text-xl font-semibold text-muted-foreground">Past Events</h3>
-            <span className="text-sm text-muted-foreground">({pastEvents.length})</span>
-          </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {pastEvents.map((event) => (
-              <EventCard
-                key={event.id}
-                event={event}
-                isPast
-                showModerationActions={isModerator}
-              />
-            ))}
-          </div>
-        </div>
+          {/* Past Events */}
+          {pastEvents.length > 0 && (
+            <div className="space-y-4">
+              <div className="flex items-center gap-2">
+                <Calendar className="h-5 w-5 text-muted-foreground" />
+                <h3 className="text-xl font-semibold text-muted-foreground">Past Events</h3>
+                <span className="text-sm text-muted-foreground">({pastEvents.length})</span>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {pastEvents.map((event) => (
+                  <EventCard
+                    key={event.id}
+                    event={event}
+                    isPast
+                    showModerationActions={isModerator}
+                  />
+                ))}
+              </div>
+            </div>
+          )}
+        </>
       )}
     </div>
   );
