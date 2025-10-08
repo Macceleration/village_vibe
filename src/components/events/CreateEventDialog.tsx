@@ -106,6 +106,16 @@ export function CreateEventDialog({ children, tribeId }: CreateEventDialogProps)
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
+    console.log('🚀 handleSubmit called - Form submission started');
+    console.log('👤 Current user:', user ? user.pubkey.slice(0, 8) : 'NO USER');
+    console.log('📝 Form data:', {
+      title: formData.title,
+      date: formData.date,
+      time: formData.time,
+      place: formData.place,
+      etypes: formData.etypes,
+    });
+
     if (!user) {
       toast({
         title: "Error",
@@ -217,6 +227,16 @@ export function CreateEventDialog({ children, tribeId }: CreateEventDialogProps)
 
 
 
+      // Log the event creation attempt
+      console.log('🎯 Creating enhanced event with data:', {
+        tribe: tribeSlug,
+        title: formData.title.trim(),
+        etypes: formData.etypes,
+        start: startTimestamp,
+        villages: formData.villages,
+        visibility: formData.visibility,
+      });
+
       // Create the enhanced event
       createEnhancedEvent({
         tribe: tribeSlug,
@@ -235,14 +255,28 @@ export function CreateEventDialog({ children, tribeId }: CreateEventDialogProps)
         typeSpecificData,
       }, {
         onSuccess: (result) => {
+          console.log('✅ Event data created:', {
+            dTag: result.dTag,
+            eventId: result.eventId,
+            kind: result.eventData.kind,
+            tags: result.eventData.tags,
+            content: result.eventData.content,
+          });
+
           // Publish the event to Nostr
-          console.log('📤 Publishing event to Nostr:', result.eventData);
+          console.log('📤 Publishing event to Nostr relay...');
           publishEvent(result.eventData, {
             onSuccess: (publishedEvent) => {
-              console.log('✅ Event published successfully:', publishedEvent);
+              console.log('✅ Event published successfully to relay!', {
+                id: publishedEvent.id,
+                pubkey: publishedEvent.pubkey,
+                kind: publishedEvent.kind,
+                created_at: publishedEvent.created_at,
+                tags: publishedEvent.tags,
+              });
             },
             onError: (publishError) => {
-              console.error('❌ Failed to publish event:', publishError);
+              console.error('❌ Failed to publish event to relay:', publishError);
               toast({
                 title: "Publishing Error",
                 description: "Event was created but failed to publish to relay. Please try again.",
@@ -326,10 +360,13 @@ export function CreateEventDialog({ children, tribeId }: CreateEventDialogProps)
         }
       });
     } catch (error) {
-      console.error('Error creating event:', error);
+      console.error('❌ CATCH BLOCK - Error creating event:', error);
+      console.error('❌ Error stack:', error instanceof Error ? error.stack : 'No stack trace');
+      console.error('❌ Error type:', typeof error);
+      console.error('❌ Error details:', JSON.stringify(error, null, 2));
       toast({
         title: "Error",
-        description: "Failed to create event. Please try again.",
+        description: `Failed to create event: ${error instanceof Error ? error.message : String(error)}`,
         variant: "destructive",
       });
     }
@@ -914,7 +951,12 @@ export function CreateEventDialog({ children, tribeId }: CreateEventDialogProps)
             <Button type="button" variant="outline" onClick={() => setOpen(false)} className="flex-1">
               Cancel
             </Button>
-            <Button type="submit" disabled={isCreating || isUploading} className="flex-1">
+            <Button
+              type="submit"
+              disabled={isCreating || isUploading}
+              className="flex-1"
+              onClick={() => console.log('🔘 Create Event button clicked')}
+            >
               {isCreating ? (
                 <>
                   <Loader2 className="h-4 w-4 mr-2 animate-spin" />
