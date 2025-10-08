@@ -63,7 +63,7 @@ export function CreateEventDialog({ children, tribeId }: CreateEventDialogProps)
   const { mutate: createEnhancedEvent, isPending: isCreating } = useCreateEnhancedEvent();
   const { mutate: sendPrivateDetails } = useSendPrivateEventDetails();
   const { mutateAsync: uploadFile, isPending: isUploading } = useUploadFile();
-  const { mutate: publishEvent } = useNostrPublish();
+  const { mutateAsync: publishEventAsync } = useNostrPublish();
   const { toast } = useToast();
 
   const [open, setOpen] = useState(false);
@@ -254,7 +254,7 @@ export function CreateEventDialog({ children, tribeId }: CreateEventDialogProps)
         privateDetails: formData.privateDetails.trim(),
         typeSpecificData,
       }, {
-        onSuccess: (result) => {
+        onSuccess: async (result) => {
           console.log('✅ Event data created:', {
             dTag: result.dTag,
             eventId: result.eventId,
@@ -265,25 +265,24 @@ export function CreateEventDialog({ children, tribeId }: CreateEventDialogProps)
 
           // Publish the event to Nostr
           console.log('📤 Publishing event to Nostr relay...');
-          publishEvent(result.eventData, {
-            onSuccess: (publishedEvent) => {
-              console.log('✅ Event published successfully to relay!', {
-                id: publishedEvent.id,
-                pubkey: publishedEvent.pubkey,
-                kind: publishedEvent.kind,
-                created_at: publishedEvent.created_at,
-                tags: publishedEvent.tags,
-              });
-            },
-            onError: (publishError) => {
-              console.error('❌ Failed to publish event to relay:', publishError);
-              toast({
-                title: "Publishing Error",
-                description: "Event was created but failed to publish to relay. Please try again.",
-                variant: "destructive",
-              });
-            },
-          });
+          try {
+            const publishedEvent = await publishEventAsync(result.eventData);
+            console.log('✅ Event published successfully to relay!', {
+              id: publishedEvent.id,
+              pubkey: publishedEvent.pubkey,
+              kind: publishedEvent.kind,
+              created_at: publishedEvent.created_at,
+              tags: publishedEvent.tags,
+            });
+          } catch (publishError) {
+            console.error('❌ Failed to publish event to relay:', publishError);
+            toast({
+              title: "Publishing Error",
+              description: "Event was created but failed to publish to relay. Please try again.",
+              variant: "destructive",
+            });
+            return; // Don't continue if publish fails
+          }
 
           // Send private details via DM if this is a private event
           if (formData.visibility === 'private' && formData.sendDMs && formData.invitees.length > 0) {
