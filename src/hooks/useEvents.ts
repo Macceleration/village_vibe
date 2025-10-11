@@ -67,68 +67,49 @@ export function useTribeEvents(tribeId: string, filters: EventFilters = {}) {
       let enhancedEvents: NostrEvent[] = [];
       let legacyEvents: NostrEvent[] = [];
 
-      // Try multiple query strategies for enhanced events
+      // Query all enhanced events by author and filter client-side
+      // (Relay doesn't index custom tags like 'tribe')
       try {
-        // Strategy 1: Query by dTag only (how events are currently created)
-        enhancedEvents = await nostr.query([
+        console.log('📡 Querying all events by tribe author:', pubkey.slice(0, 8));
+        const allEnhancedEvents = await nostr.query([
           {
             kinds: [36959], // Enhanced events
-            '#tribe': [dTag],
-            limit: filters.limit || 100,
+            authors: [pubkey], // Query by tribe owner
+            limit: filters.limit || 200,
           }
         ], { signal });
-        console.log('📦 Enhanced events (dTag):', enhancedEvents.length);
+        console.log('📦 All enhanced events by author:', allEnhancedEvents.length);
 
-        // Strategy 2: If no results, try full tribe ID
-        if (enhancedEvents.length === 0) {
-          const enhancedEventsFull = await nostr.query([
-            {
-              kinds: [36959], // Enhanced events
-              '#tribe': [tribeId],
-              limit: filters.limit || 100,
-            }
-          ], { signal });
-          console.log('📦 Enhanced events (full tribeId):', enhancedEventsFull.length);
-          enhancedEvents = enhancedEventsFull;
-        }
+        // Filter for events with matching tribe tag
+        enhancedEvents = allEnhancedEvents.filter(event => {
+          const tribeTags = event.tags.filter(([name]) => name === 'tribe');
+          return tribeTags.some(([, value]) => value === dTag || value === tribeId);
+        });
+        console.log('📦 Enhanced events matching tribe tag:', enhancedEvents.length);
       } catch (err) {
         console.log('⚠️ Enhanced events query failed:', err);
       }
 
-      // Try multiple query strategies for legacy events
+      // Query legacy events by author (relays don't index #a tags reliably)
       try {
-        // Strategy 1: Query by #a tag with tribe reference
-        legacyEvents = await nostr.query([
+        const legacyEventsByAuthor = await nostr.query([
           {
             kinds: [31923], // Time-based calendar events (NIP-52)
-            '#a': [`34550:${pubkey}:${dTag}`], // Reference to tribe
-            limit: 50,
+            authors: [pubkey],
+            limit: 100,
           }
         ], { signal });
-        console.log('📦 Legacy events (#a tag):', legacyEvents.length);
+        console.log('📦 Legacy events (by author):', legacyEventsByAuthor.length);
 
-        // Strategy 2: If no results, try querying all legacy events by author
-        if (legacyEvents.length === 0) {
-          const legacyEventsByAuthor = await nostr.query([
-            {
-              kinds: [31923], // Time-based calendar events (NIP-52)
-              authors: [pubkey],
-              limit: 50,
-            }
-          ], { signal });
-          console.log('📦 Legacy events (by author):', legacyEventsByAuthor.length);
-
-          // Filter for events that might be related to this tribe
-          legacyEvents = legacyEventsByAuthor.filter(event => {
-            // Check if event has any reference to the tribe dTag
-            return event.tags.some(([name, value]) =>
-              (name === 'd' && value === dTag) ||
-              (name === 'title' && value.toLowerCase().includes(dTag.toLowerCase())) ||
-              event.content.toLowerCase().includes(dTag.toLowerCase())
-            );
-          });
-          console.log('📦 Legacy events (filtered):', legacyEvents.length);
-        }
+        // Filter for events that reference this tribe
+        legacyEvents = legacyEventsByAuthor.filter(event => {
+          // Check if event has any reference to the tribe
+          return event.tags.some(([name, value]) =>
+            (name === 'a' && value === `34550:${pubkey}:${dTag}`) ||
+            (name === 'tribe' && (value === dTag || value === tribeId))
+          );
+        });
+        console.log('📦 Legacy events (filtered for tribe):', legacyEvents.length);
       } catch (err) {
         console.log('⚠️ Legacy events query failed:', err);
       }
