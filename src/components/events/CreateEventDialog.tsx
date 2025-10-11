@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useNostr } from "@nostrify/react";
 import { useCurrentUser } from "@/hooks/useCurrentUser";
 import { useUploadFile } from "@/hooks/useUploadFile";
 import { useNostrPublish } from "@/hooks/useNostrPublish";
@@ -58,6 +59,7 @@ interface EventFormData {
 }
 
 export function CreateEventDialog({ children, tribeId }: CreateEventDialogProps) {
+  const { nostr } = useNostr();
   const { user } = useCurrentUser();
   usePublicTribes(); // Keep hook active for potential future use
   const { mutate: createEnhancedEvent, isPending: isCreating } = useCreateEnhancedEvent();
@@ -274,6 +276,39 @@ export function CreateEventDialog({ children, tribeId }: CreateEventDialogProps)
               created_at: publishedEvent.created_at,
               tags: publishedEvent.tags,
             });
+
+            // Log the specific tags for debugging
+            console.log('📋 Published event tags in detail:');
+            publishedEvent.tags.forEach((tag, i) => {
+              console.log(`  [${i}] ${tag[0]} = ${tag[1]}`);
+            });
+
+            // Immediately query to verify the relay stored it
+            console.log('🔎 Querying relay to verify event was stored...');
+            setTimeout(async () => {
+              try {
+                const verifyEvents = await nostr.query([{
+                  kinds: [36959],
+                  ids: [publishedEvent.id],
+                }], { signal: AbortSignal.timeout(2000) });
+                console.log('🔍 Verification query by ID result:', verifyEvents.length > 0 ? 'FOUND ✅' : 'NOT FOUND ❌');
+                if (verifyEvents.length > 0) {
+                  console.log('📄 Found event by ID:', verifyEvents[0]);
+                }
+
+                // Also try querying by author
+                const tribeTag = publishedEvent.tags.find(([n]) => n === 'tribe')?.[1];
+                const verifyByAuthor = await nostr.query([{
+                  kinds: [36959],
+                  authors: [publishedEvent.pubkey],
+                  limit: 10,
+                }], { signal: AbortSignal.timeout(2000) });
+                console.log('🔍 Verification query by author result:', verifyByAuthor.length, 'events');
+                console.log('🏷️ Tribe tag in published event:', tribeTag);
+              } catch (err) {
+                console.error('❌ Verification query failed:', err);
+              }
+            }, 500);
           } catch (publishError) {
             console.error('❌ Failed to publish event to relay:', publishError);
             toast({
