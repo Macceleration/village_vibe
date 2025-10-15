@@ -6,6 +6,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
 import { Plus, ListChecks } from "lucide-react";
+import { CreateActionDialog } from "./CreateActionDialog";
 
 interface EventActionsTabProps {
   event: NostrEvent;
@@ -57,11 +58,17 @@ export function EventActionsTab({ event, canManage }: EventActionsTabProps) {
           <CardContent className="py-12 text-center">
             <ListChecks className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
             <h3 className="font-semibold mb-2">No Tasks Yet</h3>
-            <p className="text-sm text-muted-foreground">
+            <p className="text-sm text-muted-foreground mb-4">
               {canManage
                 ? "Add tasks to track event preparation"
                 : "No tasks have been added yet"}
             </p>
+            {canManage && (
+              <Button onClick={() => setShowCreateDialog(true)}>
+                <Plus className="h-4 w-4 mr-2" />
+                Add First Task
+              </Button>
+            )}
           </CardContent>
         </Card>
       ) : (
@@ -92,6 +99,14 @@ export function EventActionsTab({ event, canManage }: EventActionsTabProps) {
             </Card>
           ))}
         </div>
+      )}
+
+      {canManage && (
+        <CreateActionDialog
+          event={event}
+          open={showCreateDialog}
+          onOpenChange={setShowCreateDialog}
+        />
       )}
     </div>
   );

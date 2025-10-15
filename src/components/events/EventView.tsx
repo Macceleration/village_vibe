@@ -6,11 +6,12 @@ import { EventAttendeeList } from "./EventAttendeeList";
 import { EventCheckIn } from "./EventCheckIn";
 import { AttendeeCheckIn } from "./AttendeeCheckIn";
 import { EventDiscussion } from "./EventDiscussion";
+import { EventCoordinationTabs } from "./EventCoordinationTabs";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { RelaySelector } from "@/components/RelaySelector";
-import { Users, QrCode, Trophy, MessageCircle } from "lucide-react";
+import { Users, QrCode, Trophy, MessageCircle, ClipboardList } from "lucide-react";
 
 interface EventViewProps {
   eventId: string;
@@ -82,8 +83,12 @@ export function EventView({ eventId }: EventViewProps) {
     <div className="max-w-6xl mx-auto space-y-8">
       <EventHeader event={event} userRSVP={userRSVP} />
 
-      <Tabs defaultValue="rsvp" className="space-y-6">
+      <Tabs defaultValue="coordination" className="space-y-6">
         <TabsList>
+          <TabsTrigger value="coordination" className="flex items-center gap-2">
+            <ClipboardList className="h-4 w-4" />
+            Coordination
+          </TabsTrigger>
           <TabsTrigger value="rsvp" className="flex items-center gap-2">
             <Users className="h-4 w-4" />
             RSVP & Attendees
@@ -103,6 +108,14 @@ export function EventView({ eventId }: EventViewProps) {
             Badges
           </TabsTrigger>
         </TabsList>
+
+        <TabsContent value="coordination">
+          <EventCoordinationTabs
+            event={event}
+            isOrganizer={isHost}
+            isModerator={false}
+          />
+        </TabsContent>
 
         <TabsContent value="rsvp">
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">

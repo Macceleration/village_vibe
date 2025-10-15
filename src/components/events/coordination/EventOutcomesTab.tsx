@@ -6,6 +6,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
 import { Plus, Trophy, TrendingUp, MessageSquare, Image as ImageIcon } from "lucide-react";
+import { CreateOutcomeDialog } from "./CreateOutcomeDialog";
 
 interface EventOutcomesTabProps {
   event: NostrEvent;
@@ -58,11 +59,17 @@ export function EventOutcomesTab({ event, canManage }: EventOutcomesTabProps) {
           <CardContent className="py-12 text-center">
             <Trophy className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
             <h3 className="font-semibold mb-2">No Outcomes Yet</h3>
-            <p className="text-sm text-muted-foreground">
+            <p className="text-sm text-muted-foreground mb-4">
               {canManage
                 ? "Record the impact and results after the event"
                 : "Outcomes will be shared after the event"}
             </p>
+            {canManage && (
+              <Button onClick={() => setShowCreateDialog(true)}>
+                <Plus className="h-4 w-4 mr-2" />
+                Record First Outcome
+              </Button>
+            )}
           </CardContent>
         </Card>
       ) : (
@@ -102,6 +109,14 @@ export function EventOutcomesTab({ event, canManage }: EventOutcomesTabProps) {
             </Card>
           ))}
         </div>
+      )}
+
+      {canManage && (
+        <CreateOutcomeDialog
+          event={event}
+          open={showCreateDialog}
+          onOpenChange={setShowCreateDialog}
+        />
       )}
     </div>
   );
