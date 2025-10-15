@@ -155,6 +155,145 @@ Events can be filtered by one or multiple types using the `etype` parameter:
 
 Filtering is additive - events matching any of the specified types will be returned.
 
+## Event Coordination System (Kinds 38401-38409)
+
+Village Vibe implements a flexible coordination system for managing people, resources, and tasks for any event type.
+
+### Coordination Event Kinds
+
+- **Kind 38401**: Event Role (volunteer position/shift)
+- **Kind 38402**: Role Claim (user signs up for role)
+- **Kind 38403**: Event Item (resource to bring/provide)
+- **Kind 38404**: Item Claim (user commits to bringing item)
+- **Kind 38405**: Event Action (task or milestone)
+- **Kind 38406**: Action Update (status change)
+- **Kind 38407**: Event Outcome (results/impact record)
+- **Kind 38408**: Alert Rule (notification configuration)
+- **Kind 38409**: Alert Trigger (notification fired)
+
+### Event Role (Kind 38401)
+
+Addressable event defining a volunteer position or shift.
+
+**Required Tags:**
+- `["d", "<role-id>"]` - Unique role identifier
+- `["a", "<parent-event-coordinate>"]` - Reference to parent event
+- `["e", "<parent-event-id>"]` - Event ID with marker `root`
+- `["title", "<role-title>"]` - Role name
+- `["slots", "<number>"]` - How many people needed
+- `["status", "open|claimed|filled|canceled"]` - Current status
+
+**Optional Tags:**
+- `["time_start", "<unix-timestamp>"]` - Shift start time
+- `["time_end", "<unix-timestamp>"]` - Shift end time
+- `["requirements", "<text>"]` - Required skills/qualifications
+- `["external_ref", "<id>"]` - Link to external system
+
+**Content:** Role description and details
+
+### Role Claim (Kind 38402)
+
+Addressable event representing a user claiming a role.
+
+**Required Tags:**
+- `["d", "<claim-id>"]` - Unique claim identifier
+- `["e", "<role-event-id>"]` - Role being claimed (marker: `reply`)
+- `["e", "<parent-event-id>"]` - Root event (marker: `root`)
+- `["role", "<role-id>"]` - Role d-tag being claimed
+- `["status", "active|withdrawn"]` - Claim status
+
+**Optional Tags:**
+- `["notes", "<text>"]` - User notes about availability
+
+### Event Item (Kind 38403)
+
+Addressable event defining a resource needed for the event.
+
+**Required Tags:**
+- `["d", "<item-id>"]` - Unique item identifier
+- `["a", "<parent-event-coordinate>"]` - Reference to parent event
+- `["e", "<parent-event-id>"]` - Event ID with marker `root`
+- `["title", "<item-name>"]` - Item name
+- `["quantity", "<number>"]` - Amount needed
+- `["status", "needed|claimed|confirmed|canceled"]` - Current status
+
+**Optional Tags:**
+- `["category", "<category>"]` - Item category (food, tools, supplies)
+- `["unit", "<unit>"]` - Unit of measurement (servings, pieces, hours)
+- `["external_ref", "<id>"]` - Link to external system
+
+**Content:** Item description and details
+
+### Item Claim (Kind 38404)
+
+Addressable event representing a user claiming an item.
+
+**Required Tags:**
+- `["d", "<claim-id>"]` - Unique claim identifier
+- `["e", "<item-event-id>"]` - Item being claimed (marker: `reply`)
+- `["e", "<parent-event-id>"]` - Root event (marker: `root`)
+- `["item", "<item-id>"]` - Item d-tag being claimed
+- `["quantity", "<number>"]` - Amount being brought
+- `["status", "active|withdrawn"]` - Claim status
+
+**Optional Tags:**
+- `["notes", "<text>"]` - User notes
+
+### Event Action (Kind 38405)
+
+Addressable event defining a task or milestone.
+
+**Required Tags:**
+- `["d", "<action-id>"]` - Unique action identifier
+- `["a", "<parent-event-coordinate>"]` - Reference to parent event
+- `["e", "<parent-event-id>"]` - Event ID with marker `root`
+- `["title", "<action-title>"]` - Action name
+- `["status", "pending|in-progress|done|blocked|canceled"]` - Current status
+
+**Optional Tags:**
+- `["p", "<pubkey>"]` - Assigned to user (marker: `assigned`)
+- `["due_date", "<unix-timestamp>"]` - Deadline
+- `["priority", "low|medium|high|urgent"]` - Priority level
+- `["depends", "<action-id>"]` - Dependency (repeatable)
+- `["external_ref", "<id>"]` - Link to external system
+
+**Content:** Action description
+
+### Action Update (Kind 38406)
+
+Addressable event updating an action's status.
+
+**Required Tags:**
+- `["d", "<update-id>"]` - Unique update identifier
+- `["e", "<action-event-id>"]` - Action being updated (marker: `reply`)
+- `["e", "<parent-event-id>"]` - Root event (marker: `root`)
+- `["action", "<action-id>"]` - Action d-tag being updated
+- `["status", "<new-status>"]` - New status value
+
+**Optional Tags:**
+- `["notes", "<text>"]` - Update notes
+
+**Content:** Update message
+
+### Event Outcome (Kind 38407)
+
+Addressable event recording event results and impact.
+
+**Required Tags:**
+- `["d", "<outcome-id>"]` - Unique outcome identifier
+- `["a", "<parent-event-coordinate>"]` - Reference to parent event
+- `["e", "<parent-event-id>"]` - Event ID with marker `root`
+- `["type", "metric|story|photo|feedback"]` - Outcome type
+- `["title", "<outcome-title>"]` - Outcome name
+
+**Optional Tags:**
+- `["value", "<number>"]` - Metric value
+- `["unit", "<unit>"]` - Metric unit
+- `["media", "<url>"]` - Photo or media URL
+- `["external_ref", "<id>"]` - Link to external system
+
+**Content:** Outcome description or story
+
 ## Implementation Notes
 
 1. **Privacy**: Location coordinates are rounded to 4 decimal places (~11m precision) for privacy
@@ -164,6 +303,8 @@ Filtering is additive - events matching any of the specified types will be retur
 5. **Multi-Type**: Events can have multiple `etype` tags for combined event types
 6. **Private Events**: Use DMs for sensitive details, event shell remains public with minimal info
 7. **Interoperability**: Based on existing NIPs (52, 23, 32, 04) for maximum compatibility
+8. **Coordination**: Roles, Items, Actions, and Outcomes use addressable events (kinds 38401-38407)
+9. **External References**: All coordination objects support `external_ref` tags for linking with external systems (Cooking with Grace, etc.)
 
 ## Example Enhanced Event
 
