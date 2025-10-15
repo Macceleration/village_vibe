@@ -19,14 +19,31 @@ interface RoleCardProps {
 
 export function RoleCard({ role, event, canManage }: RoleCardProps) {
   const { user } = useCurrentUser();
-  const { data: claims } = useRoleClaims(role.id, event.id);
+  const { data: claims, isLoading: claimsLoading } = useRoleClaims(role.id, event.id);
   const { mutate: claimRole, isPending: isClaiming } = useClaimRole();
   const { mutateAsync: publish } = useNostrPublish();
   const { toast } = useToast();
 
+  console.log('🎴 RoleCard render:', {
+    roleId: role.id,
+    roleTitle: role.title,
+    claimsData: claims,
+    claimsLoading,
+  });
+
   const activeClaims = claims?.filter(c => c.status === 'active') || [];
   const userClaim = activeClaims.find(c => c.claimedBy === user?.pubkey);
-  const spotsLeft = role.slots - activeClaims.length;
+  const filledCount = role.filled || activeClaims.length; // Use role.filled from aggregated query or count claims
+  const spotsLeft = role.slots - filledCount;
+
+  console.log('📊 Role stats:', {
+    roleId: role.id,
+    slots: role.slots,
+    filledFromRole: role.filled,
+    claimsLength: activeClaims.length,
+    finalFilledCount: filledCount,
+    spotsLeft,
+  });
 
   const handleClaim = async () => {
     if (!user) {
@@ -115,9 +132,12 @@ export function RoleCard({ role, event, canManage }: RoleCardProps) {
           <div className="flex flex-wrap gap-4 text-sm text-muted-foreground">
             <div className="flex items-center gap-1">
               <Users className="h-4 w-4" />
-              <span>{activeClaims.length}/{role.slots} filled</span>
+              <span className="font-medium">{filledCount}/{role.slots} filled</span>
               {spotsLeft > 0 && (
-                <span className="text-green-600">({spotsLeft} left)</span>
+                <span className="text-green-600 font-medium">({spotsLeft} left)</span>
+              )}
+              {spotsLeft === 0 && (
+                <span className="text-orange-600 font-medium">(Full)</span>
               )}
             </div>
 

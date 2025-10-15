@@ -5,10 +5,10 @@ import { useCurrentUser } from './useCurrentUser';
 
 /**
  * Event Coordination System
- * 
+ *
  * This module provides a flexible system for coordinating people, stuff, and tasks
  * for any type of event using composable sub-objects:
- * 
+ *
  * - Roles: People responsibilities or shifts
  * - Items: Physical or digital resources to bring/provide
  * - Actions: Discrete tasks or milestones to complete
@@ -130,7 +130,7 @@ export function useCreateRole() {
   });
 }
 
-// Get all roles for an event
+// Get all roles for an event with claim counts
 export function useEventRoles(eventId: string) {
   const { nostr } = useNostr();
 
@@ -139,7 +139,10 @@ export function useEventRoles(eventId: string) {
     queryFn: async (c) => {
       const signal = AbortSignal.any([c.signal, AbortSignal.timeout(2000)]);
 
-      const events = await nostr.query([
+      console.log('🔍 Querying roles for event:', eventId);
+
+      // Get all roles
+      const roleEvents = await nostr.query([
         {
           kinds: [COORDINATION_KINDS.ROLE],
           '#e': [eventId],
@@ -147,7 +150,48 @@ export function useEventRoles(eventId: string) {
         }
       ], { signal });
 
-      return events.map(parseRoleEvent).filter((r): r is EventRole => r !== null);
+      console.log('📦 Found roles:', roleEvents.length);
+
+      // Get all role claims for this event
+      const claimEvents = await nostr.query([
+        {
+          kinds: [COORDINATION_KINDS.ROLE_CLAIM],
+          '#e': [eventId],
+          limit: 200,
+        }
+      ], { signal });
+
+      console.log('📦 Found role claims:', claimEvents.length);
+
+      const claims = claimEvents.map(parseRoleClaimEvent).filter((c): c is RoleClaim => c !== null);
+      const activeClaims = claims.filter(c => c.status === 'active');
+
+      console.log('✅ Active claims:', activeClaims.length);
+
+      // Count claims per role
+      const claimCounts = new Map<string, number>();
+      activeClaims.forEach(claim => {
+        const count = claimCounts.get(claim.roleId) || 0;
+        claimCounts.set(claim.roleId, count + 1);
+      });
+
+      // Parse roles and add claim counts
+      const roles = roleEvents.map(event => {
+        const role = parseRoleEvent(event);
+        if (!role) return null;
+
+        const filled = claimCounts.get(role.id) || 0;
+        return { ...role, filled };
+      }).filter((r): r is EventRole => r !== null);
+
+      console.log('✅ Roles with claim counts:', roles.map(r => ({
+        id: r.id,
+        title: r.title,
+        filled: r.filled,
+        slots: r.slots
+      })));
+
+      return roles;
     },
   });
 }
@@ -197,23 +241,40 @@ export function useClaimRole() {
 }
 
 // Get claims for a role
-export function useRoleClaims(roleId: string, roleEventId: string) {
+export function useRoleClaims(roleId: string, eventId: string) {
   const { nostr } = useNostr();
 
   return useQuery({
-    queryKey: ['role-claims', roleId],
+    queryKey: ['role-claims', roleId, eventId],
     queryFn: async (c) => {
       const signal = AbortSignal.any([c.signal, AbortSignal.timeout(2000)]);
 
+      console.log('🔍 Querying role claims for:', { roleId, eventId });
+
+      // Query all claims for this event, then filter client-side
+      // (Relay doesn't index custom tags like 'role')
       const events = await nostr.query([
         {
           kinds: [COORDINATION_KINDS.ROLE_CLAIM],
-          '#role': [roleId],
-          limit: 50,
+          '#e': [eventId], // Query by event ID
+          limit: 100,
         }
       ], { signal });
 
-      return events.map(parseRoleClaimEvent).filter((c): c is RoleClaim => c !== null);
+      console.log('📦 Total role claims for event:', events.length);
+
+      // Filter for claims matching this specific role
+      const roleClaims = events.filter(event => {
+        const claimRoleId = event.tags.find(([n]) => n === 'role')?.[1];
+        return claimRoleId === roleId;
+      });
+
+      console.log('📦 Claims for this role:', roleClaims.length);
+
+      const parsed = roleClaims.map(parseRoleClaimEvent).filter((c): c is RoleClaim => c !== null);
+      console.log('✅ Valid claims:', parsed);
+
+      return parsed;
     },
   });
 }
@@ -298,7 +359,7 @@ export function useCreateItem() {
   });
 }
 
-// Get all items for an event
+// Get all items for an event with claim counts
 export function useEventItems(eventId: string) {
   const { nostr } = useNostr();
 
@@ -307,7 +368,10 @@ export function useEventItems(eventId: string) {
     queryFn: async (c) => {
       const signal = AbortSignal.any([c.signal, AbortSignal.timeout(2000)]);
 
-      const events = await nostr.query([
+      console.log('🔍 Querying items for event:', eventId);
+
+      // Get all items
+      const itemEvents = await nostr.query([
         {
           kinds: [COORDINATION_KINDS.ITEM],
           '#e': [eventId],
@@ -315,7 +379,48 @@ export function useEventItems(eventId: string) {
         }
       ], { signal });
 
-      return events.map(parseItemEvent).filter((i): i is EventItem => i !== null);
+      console.log('📦 Found items:', itemEvents.length);
+
+      // Get all item claims for this event
+      const claimEvents = await nostr.query([
+        {
+          kinds: [COORDINATION_KINDS.ITEM_CLAIM],
+          '#e': [eventId],
+          limit: 200,
+        }
+      ], { signal });
+
+      console.log('📦 Found item claims:', claimEvents.length);
+
+      const claims = claimEvents.map(parseItemClaimEvent).filter((c): c is ItemClaim => c !== null);
+      const activeClaims = claims.filter(c => c.status === 'active');
+
+      console.log('✅ Active item claims:', activeClaims.length);
+
+      // Count claimed quantities per item
+      const claimQuantities = new Map<string, number>();
+      activeClaims.forEach(claim => {
+        const qty = claimQuantities.get(claim.itemId) || 0;
+        claimQuantities.set(claim.itemId, qty + claim.quantity);
+      });
+
+      // Parse items and add claim counts
+      const items = itemEvents.map(event => {
+        const item = parseItemEvent(event);
+        if (!item) return null;
+
+        const claimed = claimQuantities.get(item.id) || 0;
+        return { ...item, claimed };
+      }).filter((i): i is EventItem => i !== null);
+
+      console.log('✅ Items with claim counts:', items.map(i => ({
+        id: i.id,
+        title: i.title,
+        claimed: i.claimed,
+        quantity: i.quantity
+      })));
+
+      return items;
     },
   });
 }
@@ -367,23 +472,37 @@ export function useClaimItem() {
 }
 
 // Get claims for an item
-export function useItemClaims(itemId: string) {
+export function useItemClaims(itemId: string, eventId: string) {
   const { nostr } = useNostr();
 
   return useQuery({
-    queryKey: ['item-claims', itemId],
+    queryKey: ['item-claims', itemId, eventId],
     queryFn: async (c) => {
       const signal = AbortSignal.any([c.signal, AbortSignal.timeout(2000)]);
 
+      console.log('🔍 Querying item claims for:', { itemId, eventId });
+
+      // Query all claims for this event, then filter client-side
+      // (Relay doesn't index custom tags like 'item')
       const events = await nostr.query([
         {
           kinds: [COORDINATION_KINDS.ITEM_CLAIM],
-          '#item': [itemId],
-          limit: 50,
+          '#e': [eventId], // Query by event ID
+          limit: 100,
         }
       ], { signal });
 
-      return events.map(parseItemClaimEvent).filter((c): c is ItemClaim => c !== null);
+      console.log('📦 Total item claims for event:', events.length);
+
+      // Filter for claims matching this specific item
+      const itemClaims = events.filter(event => {
+        const claimItemId = event.tags.find(([n]) => n === 'item')?.[1];
+        return claimItemId === itemId;
+      });
+
+      console.log('📦 Claims for this item:', itemClaims.length);
+
+      return itemClaims.map(parseItemClaimEvent).filter((c): c is ItemClaim => c !== null);
     },
   });
 }
@@ -677,18 +796,26 @@ export function useEventCoordinationSummary(eventId: string) {
       const actions = actionsQuery.data || [];
       const outcomes = outcomesQuery.data || [];
 
+      // Calculate total filled slots across all roles
+      const totalFilledSlots = roles.reduce((sum, role) => sum + role.filled, 0);
+      const totalSlots = roles.reduce((sum, role) => sum + role.slots, 0);
+
+      // Calculate total claimed items
+      const totalClaimedQty = items.reduce((sum, item) => sum + item.claimed, 0);
+      const totalItemQty = items.reduce((sum, item) => sum + item.quantity, 0);
+
       const summary: EventCoordinationSummary = {
         eventId,
         roles: {
           total: roles.length,
-          open: roles.filter(r => r.status === 'open').length,
-          filled: roles.filter(r => r.status === 'filled').length,
+          open: roles.filter(r => r.filled < r.slots).length, // Roles with available spots
+          filled: roles.filter(r => r.filled >= r.slots).length, // Roles that are full
           items: roles,
         },
         items: {
           total: items.length,
-          needed: items.filter(i => i.status === 'needed').length,
-          claimed: items.filter(i => i.status === 'claimed' || i.status === 'confirmed').length,
+          needed: items.filter(i => i.claimed < i.quantity).length, // Items still needed
+          claimed: items.filter(i => i.claimed >= i.quantity).length, // Items fully claimed
           items,
         },
         actions: {

@@ -107,12 +107,27 @@ function EventOverviewTab({ event, summary, isLoading }: { event: NostrEvent; su
   }
 
   const gaps = [];
-  if (summary.roles.open > 0) {
-    gaps.push(`${summary.roles.open} role${summary.roles.open > 1 ? 's' : ''} unfilled`);
+
+  // Calculate unfilled spots across all roles
+  const unfilledSpots = summary.roles.items.reduce((sum: number, r: any) => {
+    const spotsLeft = r.slots - r.filled;
+    return sum + (spotsLeft > 0 ? spotsLeft : 0);
+  }, 0);
+
+  if (unfilledSpots > 0) {
+    gaps.push(`${unfilledSpots} volunteer spot${unfilledSpots > 1 ? 's' : ''} unfilled`);
   }
-  if (summary.items.needed > 0) {
-    gaps.push(`${summary.items.needed} item${summary.items.needed > 1 ? 's' : ''} needed`);
+
+  // Calculate unclaimed item quantities
+  const unclaimedQty = summary.items.items.reduce((sum: number, i: any) => {
+    const qtyLeft = i.quantity - i.claimed;
+    return sum + (qtyLeft > 0 ? qtyLeft : 0);
+  }, 0);
+
+  if (unclaimedQty > 0) {
+    gaps.push(`${unclaimedQty} item${unclaimedQty > 1 ? 's' : ''} still needed`);
   }
+
   if (summary.actions.pending > 0) {
     gaps.push(`${summary.actions.pending} task${summary.actions.pending > 1 ? 's' : ''} pending`);
   }
@@ -139,8 +154,13 @@ function EventOverviewTab({ event, summary, isLoading }: { event: NostrEvent; su
             <Users className="h-4 w-4" />
             Roles
           </div>
-          <div className="text-2xl font-bold">{summary.roles.filled}/{summary.roles.total}</div>
-          <div className="text-xs text-muted-foreground">filled</div>
+          <div className="text-2xl font-bold">
+            {summary.roles.items.reduce((sum: number, r: any) => sum + r.filled, 0)}/
+            {summary.roles.items.reduce((sum: number, r: any) => sum + r.slots, 0)}
+          </div>
+          <div className="text-xs text-muted-foreground">
+            spots filled ({summary.roles.filled} of {summary.roles.total} roles full)
+          </div>
         </div>
 
         <div className="bg-card border rounded-lg p-4">
@@ -148,8 +168,13 @@ function EventOverviewTab({ event, summary, isLoading }: { event: NostrEvent; su
             <Package className="h-4 w-4" />
             Items
           </div>
-          <div className="text-2xl font-bold">{summary.items.claimed}/{summary.items.total}</div>
-          <div className="text-xs text-muted-foreground">claimed</div>
+          <div className="text-2xl font-bold">
+            {summary.items.items.reduce((sum: number, i: any) => sum + i.claimed, 0)}/
+            {summary.items.items.reduce((sum: number, i: any) => sum + i.quantity, 0)}
+          </div>
+          <div className="text-xs text-muted-foreground">
+            items claimed ({summary.items.claimed} of {summary.items.total} complete)
+          </div>
         </div>
 
         <div className="bg-card border rounded-lg p-4">
