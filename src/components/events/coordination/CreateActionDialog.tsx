@@ -59,6 +59,13 @@ export function CreateActionDialog({ event, open, onOpenChange }: CreateActionDi
       return;
     }
 
+    console.log('🎯 Creating action for event:', {
+      eventId: event.id,
+      eventKind: event.kind,
+      eventDTag,
+      title: formData.title.trim(),
+    });
+
     createAction({
       eventId: event.id,
       eventKind: event.kind,
@@ -70,8 +77,19 @@ export function CreateActionDialog({ event, open, onOpenChange }: CreateActionDi
       dueDate: formData.dueDate ? new Date(formData.dueDate).getTime() / 1000 : undefined,
     }, {
       onSuccess: async (result) => {
+        console.log('✅ Action data created:', {
+          actionId: result.actionId,
+          kind: result.eventData.kind,
+          tags: result.eventData.tags,
+        });
+
         try {
-          await publish(result.eventData);
+          console.log('📤 Publishing action to Nostr...');
+          const published = await publish(result.eventData);
+          console.log('✅ Action published successfully:', {
+            id: published.id,
+            actionId: result.actionId,
+          });
           toast({
             title: "Success",
             description: "Task created successfully",

@@ -38,14 +38,32 @@ export function RoleCard({ role, event, canManage }: RoleCardProps) {
       return;
     }
 
+    console.log('🎯 Claiming role:', {
+      roleId: role.id,
+      roleTitle: role.title,
+      eventId: event.id,
+      userPubkey: user.pubkey,
+    });
+
     claimRole({
       roleId: role.id,
       roleEventId: event.id,
       eventId: event.id,
     }, {
       onSuccess: async (result) => {
+        console.log('✅ Claim data created:', {
+          claimId: result.claimId,
+          kind: result.eventData.kind,
+          tags: result.eventData.tags,
+        });
+
         try {
-          await publish(result.eventData);
+          console.log('📤 Publishing claim to Nostr...');
+          const published = await publish(result.eventData);
+          console.log('✅ Claim published successfully:', {
+            id: published.id,
+            claimId: result.claimId,
+          });
           toast({
             title: "Success",
             description: "You've claimed this role!",
@@ -133,8 +151,8 @@ export function RoleCard({ role, event, canManage }: RoleCardProps) {
 
           {/* Actions */}
           {!userClaim && spotsLeft > 0 && (
-            <Button 
-              onClick={handleClaim} 
+            <Button
+              onClick={handleClaim}
               disabled={isClaiming || !user}
               className="w-full"
             >

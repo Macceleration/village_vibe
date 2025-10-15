@@ -84,6 +84,14 @@ export function CreateOutcomeDialog({ event, open, onOpenChange }: CreateOutcome
       return;
     }
 
+    console.log('🎯 Creating outcome for event:', {
+      eventId: event.id,
+      eventKind: event.kind,
+      eventDTag,
+      type: formData.type,
+      title: formData.title.trim(),
+    });
+
     createOutcome({
       eventId: event.id,
       eventKind: event.kind,
@@ -97,8 +105,19 @@ export function CreateOutcomeDialog({ event, open, onOpenChange }: CreateOutcome
       mediaUrl: formData.mediaUrl || undefined,
     }, {
       onSuccess: async (result) => {
+        console.log('✅ Outcome data created:', {
+          outcomeId: result.outcomeId,
+          kind: result.eventData.kind,
+          tags: result.eventData.tags,
+        });
+
         try {
-          await publish(result.eventData);
+          console.log('📤 Publishing outcome to Nostr...');
+          const published = await publish(result.eventData);
+          console.log('✅ Outcome published successfully:', {
+            id: published.id,
+            outcomeId: result.outcomeId,
+          });
           toast({
             title: "Success",
             description: "Outcome recorded successfully",

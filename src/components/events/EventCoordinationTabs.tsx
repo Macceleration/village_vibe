@@ -1,10 +1,12 @@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
-import { Users, Package, ListChecks, Trophy, Info } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Users, Package, ListChecks, Trophy, Info, Bug } from "lucide-react";
 import { EventRolesTab } from "./coordination/EventRolesTab";
 import { EventItemsTab } from "./coordination/EventItemsTab";
 import { EventActionsTab } from "./coordination/EventActionsTab";
 import { EventOutcomesTab } from "./coordination/EventOutcomesTab";
+import { DebugCoordinationDialog } from "./coordination/DebugCoordinationDialog";
 import { useEventCoordinationSummary } from "@/hooks/useEventCoordination";
 import type { NostrEvent } from "@nostrify/nostrify";
 
@@ -94,7 +96,14 @@ function EventOverviewTab({ event, summary, isLoading }: { event: NostrEvent; su
   }
 
   if (!summary) {
-    return <div>No coordination data yet</div>;
+    return (
+      <div className="space-y-6">
+        <div className="flex items-center justify-between">
+          <p className="text-muted-foreground">No coordination data yet</p>
+          <DebugCoordinationDialog event={event} />
+        </div>
+      </div>
+    );
   }
 
   const gaps = [];
@@ -113,6 +122,16 @@ function EventOverviewTab({ event, summary, isLoading }: { event: NostrEvent; su
 
   return (
     <div className="space-y-6">
+      {/* Header with Debug */}
+      <div className="flex items-center justify-end">
+        <DebugCoordinationDialog event={event}>
+          <Button variant="outline" size="sm">
+            <Bug className="h-4 w-4 mr-2" />
+            Debug
+          </Button>
+        </DebugCoordinationDialog>
+      </div>
+
       {/* Summary Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <div className="bg-card border rounded-lg p-4">

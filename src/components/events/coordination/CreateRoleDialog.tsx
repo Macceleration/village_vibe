@@ -53,6 +53,13 @@ export function CreateRoleDialog({ event, open, onOpenChange }: CreateRoleDialog
       return;
     }
 
+    console.log('🎯 Creating role for event:', {
+      eventId: event.id,
+      eventKind: event.kind,
+      eventDTag,
+      title: formData.title.trim(),
+    });
+
     createRole({
       eventId: event.id,
       eventKind: event.kind,
@@ -66,8 +73,19 @@ export function CreateRoleDialog({ event, open, onOpenChange }: CreateRoleDialog
       requirements: formData.requirements.trim() || undefined,
     }, {
       onSuccess: async (result) => {
+        console.log('✅ Role data created:', {
+          roleId: result.roleId,
+          kind: result.eventData.kind,
+          tags: result.eventData.tags,
+        });
+
         try {
-          await publish(result.eventData);
+          console.log('📤 Publishing role to Nostr...');
+          const published = await publish(result.eventData);
+          console.log('✅ Role published successfully:', {
+            id: published.id,
+            roleId: result.roleId,
+          });
           toast({
             title: "Success",
             description: "Role created successfully",

@@ -63,6 +63,13 @@ export function CreateItemDialog({ event, open, onOpenChange }: CreateItemDialog
       return;
     }
 
+    console.log('🎯 Creating item for event:', {
+      eventId: event.id,
+      eventKind: event.kind,
+      eventDTag,
+      title: formData.title.trim(),
+    });
+
     createItem({
       eventId: event.id,
       eventKind: event.kind,
@@ -75,8 +82,19 @@ export function CreateItemDialog({ event, open, onOpenChange }: CreateItemDialog
       unit: formData.unit.trim() || undefined,
     }, {
       onSuccess: async (result) => {
+        console.log('✅ Item data created:', {
+          itemId: result.itemId,
+          kind: result.eventData.kind,
+          tags: result.eventData.tags,
+        });
+
         try {
-          await publish(result.eventData);
+          console.log('📤 Publishing item to Nostr...');
+          const published = await publish(result.eventData);
+          console.log('✅ Item published successfully:', {
+            id: published.id,
+            itemId: result.itemId,
+          });
           toast({
             title: "Success",
             description: "Item created successfully",
