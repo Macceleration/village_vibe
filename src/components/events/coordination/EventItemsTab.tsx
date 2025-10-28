@@ -4,9 +4,9 @@ import { useEventItems } from "@/hooks/useEventCoordination";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Badge } from "@/components/ui/badge";
 import { Plus, Package } from "lucide-react";
 import { CreateItemDialog } from "./CreateItemDialog";
+import { ItemCard } from "./ItemCard";
 
 interface EventItemsTabProps {
   event: NostrEvent;
@@ -17,6 +17,12 @@ export function EventItemsTab({ event, canManage }: EventItemsTabProps) {
   const { data: items, isLoading } = useEventItems(event.id);
   const [showCreateDialog, setShowCreateDialog] = useState(false);
 
+  console.log('📦 EventItemsTab render:', {
+    eventId: event.id,
+    itemsCount: items?.length,
+    isLoading,
+  });
+
   if (isLoading) {
     return (
       <div className="space-y-4">
@@ -26,6 +32,9 @@ export function EventItemsTab({ event, canManage }: EventItemsTabProps) {
       </div>
     );
   }
+
+  const neededItems = items?.filter(i => i.claimed < i.quantity) || [];
+  const fullyClaimedItems = items?.filter(i => i.claimed >= i.quantity) || [];
 
   return (
     <div className="space-y-6">
@@ -63,31 +72,37 @@ export function EventItemsTab({ event, canManage }: EventItemsTabProps) {
           </CardContent>
         </Card>
       ) : (
-        <div className="space-y-4">
-          {items.map(item => (
-            <Card key={item.id}>
-              <CardContent className="p-4">
-                <div className="flex items-start justify-between">
-                  <div className="flex-1">
-                    <div className="flex items-center gap-2 mb-1">
-                      <h3 className="font-semibold">{item.title}</h3>
-                      {item.category && (
-                        <Badge variant="outline">{item.category}</Badge>
-                      )}
-                    </div>
-                    <p className="text-sm text-muted-foreground">{item.description}</p>
-                    <div className="mt-2 text-sm font-medium">
-                      <span>{item.quantity}</span>
-                      {item.unit && <span className="text-muted-foreground"> {item.unit}</span>}
-                      <span className="text-muted-foreground"> needed</span>
-                    </div>
-                  </div>
-                  <Button size="sm">Claim</Button>
-                </div>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
+        <>
+          {/* Items Still Needed */}
+          {neededItems.length > 0 && (
+            <div className="space-y-4">
+              <h3 className="font-semibold">Items Needed ({neededItems.length})</h3>
+              {neededItems.map(item => (
+                <ItemCard
+                  key={item.id}
+                  item={item}
+                  event={event}
+                  canManage={canManage}
+                />
+              ))}
+            </div>
+          )}
+
+          {/* Fully Claimed Items */}
+          {fullyClaimedItems.length > 0 && (
+            <div className="space-y-4">
+              <h3 className="font-semibold">Fully Claimed ({fullyClaimedItems.length})</h3>
+              {fullyClaimedItems.map(item => (
+                <ItemCard
+                  key={item.id}
+                  item={item}
+                  event={event}
+                  canManage={canManage}
+                />
+              ))}
+            </div>
+          )}
+        </>
       )}
 
       {canManage && (
