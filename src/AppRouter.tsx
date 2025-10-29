@@ -11,6 +11,7 @@ import VillagePage from "./pages/VillagePage";
 import ProfilePage from "./pages/ProfilePage";
 import ProfileSettingsPage from "./pages/ProfileSettingsPage";
 import ChatPage from "./pages/ChatPage";
+import AboutPage from "./pages/About";
 import { NIP19Page } from "./pages/NIP19Page";
 import { NIPPage } from "./pages/NIPPage";
 import NotFound from "./pages/NotFound";
@@ -31,6 +32,7 @@ export function AppRouter() {
           <Route path="/profile/:pubkey" element={<ProfilePage />} />
           <Route path="/settings/profile" element={<ProfileSettingsPage />} />
           <Route path="/messages" element={<ChatPage />} />
+          <Route path="/about" element={<AboutPage />} />
           <Route path="/nip" element={<NIPPage />} />
           {/* NIP-19 route for npub1, note1, naddr1, nevent1, nprofile1 */}
           <Route path="/:nip19" element={<NIP19Page />} />

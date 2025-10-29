@@ -63,6 +63,14 @@ export function Navigation() {
                 Messages
               </Link>
             )}
+            <Link
+              to="/about"
+              className={`text-sm font-medium transition-colors hover:text-primary ${
+                location.pathname === '/about' ? 'text-foreground' : 'text-muted-foreground'
+              }`}
+            >
+              About
+            </Link>
           </div>
 
           {/* User Area */}
