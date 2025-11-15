@@ -767,7 +767,10 @@ export function validateRSVPEvent(event: NostrEvent): boolean {
 
 // Validate enhanced event structure
 export function validateEnhancedEvent(event: NostrEvent): boolean {
-  if (event.kind !== 36959) return false;
+  if (event.kind !== 36959) {
+    console.log('❌ Validation failed: wrong kind', event.kind);
+    return false;
+  }
 
   const dTag = event.tags.find(([name]) => name === 'd')?.[1];
   const tribeTag = event.tags.find(([name]) => name === 'tribe')?.[1];
@@ -777,18 +780,54 @@ export function validateEnhancedEvent(event: NostrEvent): boolean {
   const locationTag = event.tags.find(([name]) => name === 'l')?.[1];
 
   // Required tags
-  if (!dTag || !tribeTag || !titleTag || !startTag || !placeTag || !locationTag) return false;
+  if (!dTag || !tribeTag || !titleTag || !startTag || !placeTag || !locationTag) {
+    console.log('❌ Validation failed: missing required tags', {
+      eventId: event.id.slice(0, 8),
+      title: titleTag,
+      hasDTag: !!dTag,
+      hasTribe: !!tribeTag,
+      hasTitle: !!titleTag,
+      hasStart: !!startTag,
+      hasPlace: !!placeTag,
+      hasLocation: !!locationTag,
+    });
+    return false;
+  }
 
   // Validate start timestamp
   const timestamp = parseInt(startTag);
-  if (isNaN(timestamp) || timestamp <= 0) return false;
+  if (isNaN(timestamp) || timestamp <= 0) {
+    console.log('❌ Validation failed: invalid timestamp', {
+      eventId: event.id.slice(0, 8),
+      title: titleTag,
+      startTag,
+      timestamp,
+    });
+    return false;
+  }
 
   // Validate location format (lat,lon)
   const locationParts = locationTag.split(',');
-  if (locationParts.length !== 2) return false;
+  if (locationParts.length !== 2) {
+    console.log('❌ Validation failed: invalid location format', {
+      eventId: event.id.slice(0, 8),
+      title: titleTag,
+      locationTag,
+      parts: locationParts.length,
+    });
+    return false;
+  }
 
   const [lat, lon] = locationParts.map(Number);
-  if (isNaN(lat) || isNaN(lon)) return false;
+  if (isNaN(lat) || isNaN(lon)) {
+    console.log('❌ Validation failed: location not numbers', {
+      eventId: event.id.slice(0, 8),
+      title: titleTag,
+      lat,
+      lon,
+    });
+    return false;
+  }
 
   // Validate event types (OPTIONAL for backward compatibility with old events)
   const etypeTags = event.tags.filter(([name]) => name === 'etype');
@@ -805,7 +844,19 @@ export function validateEnhancedEvent(event: NostrEvent): boolean {
   if (visibilityTag && !['public', 'tribe-only', 'private'].includes(visibilityTag)) return false;
 
   // Validate content length
-  if (event.content.length > 500) return false;
+  if (event.content.length > 500) {
+    console.log('❌ Validation failed: content too long', {
+      eventId: event.id.slice(0, 8),
+      title: titleTag,
+      contentLength: event.content.length,
+    });
+    return false;
+  }
+
+  console.log('✅ Validation passed:', {
+    eventId: event.id.slice(0, 8),
+    title: titleTag,
+  });
 
   return true;
 }
