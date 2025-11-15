@@ -79,47 +79,32 @@ export function DebugEventsDialog({ tribeId, children }: DebugEventsDialogProps)
         }
       }
 
-      // Query 1: Enhanced events by dTag
-      try {
-        const enhancedByDTag = await nostr.query([{
-          kinds: [36959],
-          '#tribe': [tribeDTag],
-          limit: 50,
-        }], { signal });
-        results.queries.push({
-          name: 'Enhanced Events (#tribe = dTag)',
-          filter: { kinds: [36959], '#tribe': [tribeDTag], limit: 50 },
-          count: enhancedByDTag.length,
-          events: enhancedByDTag.slice(0, 3).map(e => ({
-            id: e.id.slice(0, 8),
-            kind: e.kind,
-            pubkey: e.pubkey.slice(0, 8),
-            dTag: e.tags.find(([n]) => n === 'd')?.[1],
-            title: e.tags.find(([n]) => n === 'title')?.[1],
-            tribe: e.tags.find(([n]) => n === 'tribe')?.[1],
-            created: new Date(e.created_at * 1000).toLocaleString(),
-          })),
-        });
-      } catch (err) {
-        results.queries.push({
-          name: 'Enhanced Events (#tribe = dTag)',
-          error: String(err),
-        });
-      }
-
-      // Query 2: Enhanced events by full tribeId
+      // Query 1: WORKING STRATEGY - Query by tribe author (matches useTribeEvents)
       if (tribePubkey) {
         try {
-          const enhancedByFull = await nostr.query([{
+          console.log('📡 Debug: Querying all events by tribe author:', tribePubkey.slice(0, 8));
+          const allEnhancedEvents = await nostr.query([{
             kinds: [36959],
-            '#tribe': [tribeId],
-            limit: 50,
+            authors: [tribePubkey], // Query by tribe owner
+            limit: 200,
           }], { signal });
+
+          console.log('📦 Debug: All enhanced events by author:', allEnhancedEvents.length);
+
+          // Filter for events with matching tribe tag
+          const filtered = allEnhancedEvents.filter(event => {
+            const tribeTags = event.tags.filter(([name]) => name === 'tribe');
+            return tribeTags.some(([, value]) => value === tribeDTag || value === tribeId);
+          });
+
+          console.log('📦 Debug: Enhanced events matching tribe tag:', filtered.length);
+
           results.queries.push({
-            name: 'Enhanced Events (#tribe = full ID)',
-            filter: { kinds: [36959], '#tribe': [tribeId], limit: 50 },
-            count: enhancedByFull.length,
-            events: enhancedByFull.slice(0, 3).map(e => ({
+            name: '✅ Enhanced Events (by tribe author - WORKING)',
+            filter: { kinds: [36959], authors: [tribePubkey], limit: 200 },
+            total: allEnhancedEvents.length,
+            filtered: filtered.length,
+            events: filtered.slice(0, 5).map(e => ({
               id: e.id.slice(0, 8),
               kind: e.kind,
               pubkey: e.pubkey.slice(0, 8),
@@ -131,69 +116,7 @@ export function DebugEventsDialog({ tribeId, children }: DebugEventsDialogProps)
           });
         } catch (err) {
           results.queries.push({
-            name: 'Enhanced Events (#tribe = full ID)',
-            error: String(err),
-          });
-        }
-      }
-
-      // Query 3: All enhanced events (client-side filter)
-      try {
-        const allEnhanced = await nostr.query([{
-          kinds: [36959],
-          limit: 100,
-        }], { signal });
-        const filtered = allEnhanced.filter(e => {
-          const tribe = e.tags.find(([n]) => n === 'tribe')?.[1];
-          return tribe === tribeDTag || tribe === tribeId;
-        });
-        results.queries.push({
-          name: 'All Enhanced Events (client filter)',
-          filter: { kinds: [36959], limit: 100 },
-          total: allEnhanced.length,
-          filtered: filtered.length,
-          events: filtered.slice(0, 3).map(e => ({
-            id: e.id.slice(0, 8),
-            kind: e.kind,
-            pubkey: e.pubkey.slice(0, 8),
-            dTag: e.tags.find(([n]) => n === 'd')?.[1],
-            title: e.tags.find(([n]) => n === 'title')?.[1],
-            tribe: e.tags.find(([n]) => n === 'tribe')?.[1],
-            created: new Date(e.created_at * 1000).toLocaleString(),
-          })),
-        });
-      } catch (err) {
-        results.queries.push({
-          name: 'All Enhanced Events (client filter)',
-          error: String(err),
-        });
-      }
-
-      // Query 4: User's own enhanced events
-      if (user?.pubkey) {
-        try {
-          const userEvents = await nostr.query([{
-            kinds: [36959],
-            authors: [user.pubkey],
-            limit: 50,
-          }], { signal });
-          results.queries.push({
-            name: 'Your Enhanced Events',
-            filter: { kinds: [36959], authors: [user.pubkey], limit: 50 },
-            count: userEvents.length,
-            events: userEvents.slice(0, 3).map(e => ({
-              id: e.id.slice(0, 8),
-              kind: e.kind,
-              dTag: e.tags.find(([n]) => n === 'd')?.[1],
-              title: e.tags.find(([n]) => n === 'title')?.[1],
-              tribe: e.tags.find(([n]) => n === 'tribe')?.[1],
-              created: new Date(e.created_at * 1000).toLocaleString(),
-              allTags: e.tags,
-            })),
-          });
-        } catch (err) {
-          results.queries.push({
-            name: 'Your Enhanced Events',
+            name: '✅ Enhanced Events (by tribe author)',
             error: String(err),
           });
         }
