@@ -314,6 +314,7 @@ export function CreateEventDialog({ children, tribeId }: CreateEventDialogProps)
             }
 
             // Show success toast with technical details
+            console.log('🎊 Showing success toast...');
             toast({
               title: "Event Published! 🎉",
               description: (
@@ -340,6 +341,7 @@ export function CreateEventDialog({ children, tribeId }: CreateEventDialogProps)
             });
 
             // Close dialog and reset form
+            console.log('🚪 Closing dialog and resetting form...');
             setOpen(false);
             setFormData({
               title: '',
