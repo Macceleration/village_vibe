@@ -283,6 +283,96 @@ export function CreateEventDialog({ children, tribeId }: CreateEventDialogProps)
               console.log(`  [${i}] ${tag[0]} = ${tag[1]}`);
             });
 
+            // Create detailed debug info
+            const debugInfo = {
+              eventId: publishedEvent.id,
+              eventKind: publishedEvent.kind,
+              pubkey: publishedEvent.pubkey.slice(0, 8) + '...',
+              dTag: result.dTag,
+              tribeTag: publishedEvent.tags.find(([n]) => n === 'tribe')?.[1],
+              title: formData.title.trim(),
+              timestamp: publishedEvent.created_at,
+              tags: publishedEvent.tags,
+            };
+
+            // Store in sessionStorage for debug tool
+            sessionStorage.setItem('lastCreatedEvent', JSON.stringify(debugInfo));
+
+            // Send private details via DM if this is a private event
+            if (formData.visibility === 'private' && formData.sendDMs && formData.invitees.length > 0) {
+              const privateDetailsText = formData.privateDetails.trim() || 'See you there!';
+              const exactLocationText = formData.exactLocation.trim() || formData.place.trim();
+
+              sendPrivateDetails({
+                eventId: result.eventId,
+                eventTitle: formData.title.trim(),
+                invitees: formData.invitees,
+                privateDetails: privateDetailsText,
+                exactLocation: exactLocationText,
+                organizer: user.pubkey,
+              });
+            }
+
+            // Show success toast with technical details
+            toast({
+              title: "Event Published! 🎉",
+              description: (
+                <div className="space-y-2 text-xs">
+                  <p>Your {formData.etypes.map(t => getEventTypeInfo(t).label).join(' + ')} event is live!</p>
+                  <div className="bg-muted/50 p-2 rounded font-mono text-[10px] space-y-1">
+                    <div><strong>ID:</strong> {publishedEvent.id.slice(0, 16)}...</div>
+                    <div><strong>Kind:</strong> {publishedEvent.kind}</div>
+                    <div><strong>Tribe:</strong> {debugInfo.tribeTag}</div>
+                    <div><strong>dTag:</strong> {result.dTag}</div>
+                  </div>
+                  <button
+                    onClick={() => {
+                      navigator.clipboard.writeText(JSON.stringify(debugInfo, null, 2));
+                      toast({ title: "Copied!", description: "Event details copied to clipboard" });
+                    }}
+                    className="text-xs underline hover:text-foreground"
+                  >
+                    📋 Copy Debug Info
+                  </button>
+                </div>
+              ),
+              duration: 10000,
+            });
+
+            // Close dialog and reset form
+            setOpen(false);
+            setFormData({
+              title: '',
+              summary: '',
+              description: '',
+              place: '',
+              lat: 47.6062,
+              lon: -122.3321,
+              image: '',
+              date: '',
+              time: '',
+              duration: '60',
+              etypes: [],
+              visibility: 'public',
+              villages: [],
+              invitees: [],
+              privateDetails: '',
+              exactLocation: '',
+              sendDMs: true,
+              enableZaps: false,
+              enableComments: true,
+              autoPromptStory: true,
+              foodSlots: [],
+              dietNotes: '',
+              tasks: [],
+              toolsNeeded: '',
+              instructors: [],
+              materials: '',
+              gameKind: '',
+              teamsMode: 'auto',
+              occasion: '',
+            });
+
             // Immediately query to verify the relay stored it
             console.log('🔎 Querying relay to verify event was stored...');
             setTimeout(async () => {
@@ -318,106 +408,6 @@ export function CreateEventDialog({ children, tribeId }: CreateEventDialogProps)
             });
             return; // Don't continue if publish fails
           }
-
-          // Send private details via DM if this is a private event
-          if (formData.visibility === 'private' && formData.sendDMs && formData.invitees.length > 0) {
-            const privateDetailsText = formData.privateDetails.trim() || 'See you there!';
-            const exactLocationText = formData.exactLocation.trim() || formData.place.trim();
-
-            sendPrivateDetails({
-              eventId: result.eventId,
-              eventTitle: formData.title.trim(),
-              invitees: formData.invitees,
-              privateDetails: privateDetailsText,
-              exactLocation: exactLocationText,
-              organizer: user.pubkey,
-            });
-          }
-
-          // Create detailed debug info for the toast
-          const debugInfo = {
-            eventId: publishedEvent.id,
-            eventKind: publishedEvent.kind,
-            pubkey: publishedEvent.pubkey.slice(0, 8) + '...',
-            dTag: result.dTag,
-            tribeTag: publishedEvent.tags.find(([n]) => n === 'tribe')?.[1],
-            title: formData.title.trim(),
-            timestamp: publishedEvent.created_at,
-            fullEvent: publishedEvent,
-          };
-
-          // Store in sessionStorage for debug tool
-          sessionStorage.setItem('lastCreatedEvent', JSON.stringify(debugInfo));
-
-          toast({
-            title: "Event Published! 🎉",
-            description: (
-              <div className="space-y-2 text-xs">
-                <p>Your {formData.etypes.map(t => getEventTypeInfo(t).label).join(' + ')} event is live!</p>
-                <div className="bg-muted/50 p-2 rounded font-mono text-[10px] space-y-1">
-                  <div><strong>ID:</strong> {publishedEvent.id.slice(0, 16)}...</div>
-                  <div><strong>Kind:</strong> {publishedEvent.kind}</div>
-                  <div><strong>Tribe:</strong> {debugInfo.tribeTag}</div>
-                  <div><strong>dTag:</strong> {result.dTag}</div>
-                </div>
-                <button
-                  onClick={() => {
-                    navigator.clipboard.writeText(JSON.stringify(debugInfo, null, 2));
-                    toast({ title: "Copied!", description: "Event details copied to clipboard" });
-                  }}
-                  className="text-xs underline hover:text-foreground"
-                >
-                  📋 Copy Debug Info
-                </button>
-              </div>
-            ),
-            duration: 10000, // Show for 10 seconds
-          });
-
-          // Debug: Log created event details
-          console.log('✅ Event created successfully:', {
-            eventId: result.eventId,
-            dTag: result.dTag,
-            tribeSlug,
-            etypes: formData.etypes,
-            title: formData.title.trim(),
-            startTimestamp,
-            typeSpecificData,
-          });
-
-          // Reset form and close dialog
-          setOpen(false);
-          setFormData({
-            title: '',
-            summary: '',
-            description: '',
-            place: '',
-            lat: 47.6062,
-            lon: -122.3321,
-            image: '',
-            date: '',
-            time: '',
-            duration: '60',
-            etypes: [],
-            visibility: 'public',
-            villages: [],
-            invitees: [],
-            privateDetails: '',
-            exactLocation: '',
-            sendDMs: true,
-            enableZaps: false,
-            enableComments: true,
-            autoPromptStory: true,
-            foodSlots: [],
-            dietNotes: '',
-            tasks: [],
-            toolsNeeded: '',
-            instructors: [],
-            materials: '',
-            gameKind: '',
-            teamsMode: 'auto',
-            occasion: '',
-          });
         },
         onError: (error) => {
           console.error('Error creating event:', error);
