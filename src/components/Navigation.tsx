@@ -1,20 +1,27 @@
 import { Link, useLocation } from "react-router-dom";
 import { useCurrentUser } from "@/hooks/useCurrentUser";
+import { useRelayHealth } from "@/hooks/useRelayHealth";
+import { useAppContext } from "@/hooks/useAppContext";
 import { LoginArea } from "@/components/auth/LoginArea";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { useAuthor } from "@/hooks/useAuthor";
 import { genUserName } from "@/lib/genUserName";
-import { User, Settings, MessageCircle } from "lucide-react";
+import { User, Settings, MessageCircle, Wifi, WifiOff } from "lucide-react";
 
 export function Navigation() {
   const location = useLocation();
   const { user } = useCurrentUser();
+  const { config } = useAppContext();
+  const { data: relayHealth } = useRelayHealth();
   const author = useAuthor(user?.pubkey);
 
   const metadata = author.data?.metadata;
   const displayName = metadata?.name || metadata?.display_name || (user ? genUserName(user.pubkey) : '');
+
+  const relayName = config.relayUrl.replace('wss://', '').replace('ws://', '').split('/')[0];
 
   return (
     <nav className="border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
@@ -71,6 +78,24 @@ export function Navigation() {
             >
               About
             </Link>
+
+            {/* Relay Status Indicator */}
+            <div className="flex items-center gap-2 text-xs">
+              {relayHealth?.status === 'connected' ? (
+                <div className="flex items-center gap-1 text-green-600">
+                  <Wifi className="h-3 w-3" />
+                  <span className="hidden lg:inline">{relayName}</span>
+                </div>
+              ) : (
+                <div className="flex items-center gap-1 text-red-600">
+                  <WifiOff className="h-3 w-3" />
+                  <span className="hidden lg:inline">Disconnected</span>
+                </div>
+              )}
+              {relayHealth?.latency && relayHealth.latency > 1000 && (
+                <Badge variant="destructive" className="text-[10px] h-4">Slow</Badge>
+              )}
+            </div>
           </div>
 
           {/* User Area */}
