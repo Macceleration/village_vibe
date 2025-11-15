@@ -334,9 +334,44 @@ export function CreateEventDialog({ children, tribeId }: CreateEventDialogProps)
             });
           }
 
+          // Create detailed debug info for the toast
+          const debugInfo = {
+            eventId: publishedEvent.id,
+            eventKind: publishedEvent.kind,
+            pubkey: publishedEvent.pubkey.slice(0, 8) + '...',
+            dTag: result.dTag,
+            tribeTag: publishedEvent.tags.find(([n]) => n === 'tribe')?.[1],
+            title: formData.title.trim(),
+            timestamp: publishedEvent.created_at,
+            fullEvent: publishedEvent,
+          };
+
+          // Store in sessionStorage for debug tool
+          sessionStorage.setItem('lastCreatedEvent', JSON.stringify(debugInfo));
+
           toast({
-            title: "Success! 🎉",
-            description: `Your ${formData.etypes.map(t => getEventTypeInfo(t).label).join(' + ')} event has been created. If it doesn't appear immediately, try the Debug Events tool below.`,
+            title: "Event Published! 🎉",
+            description: (
+              <div className="space-y-2 text-xs">
+                <p>Your {formData.etypes.map(t => getEventTypeInfo(t).label).join(' + ')} event is live!</p>
+                <div className="bg-muted/50 p-2 rounded font-mono text-[10px] space-y-1">
+                  <div><strong>ID:</strong> {publishedEvent.id.slice(0, 16)}...</div>
+                  <div><strong>Kind:</strong> {publishedEvent.kind}</div>
+                  <div><strong>Tribe:</strong> {debugInfo.tribeTag}</div>
+                  <div><strong>dTag:</strong> {result.dTag}</div>
+                </div>
+                <button
+                  onClick={() => {
+                    navigator.clipboard.writeText(JSON.stringify(debugInfo, null, 2));
+                    toast({ title: "Copied!", description: "Event details copied to clipboard" });
+                  }}
+                  className="text-xs underline hover:text-foreground"
+                >
+                  📋 Copy Debug Info
+                </button>
+              </div>
+            ),
+            duration: 10000, // Show for 10 seconds
           });
 
           // Debug: Log created event details

@@ -23,7 +23,7 @@ export function DebugEventsDialog({ tribeId, children }: DebugEventsDialogProps)
   const [isOpen, setIsOpen] = useState(false);
 
   // Parse tribe ID
-  const [tribePubkey, tribeDTag] = tribeId.includes(':') 
+  const [tribePubkey, tribeDTag] = tribeId.includes(':')
     ? tribeId.split(':')
     : ['', tribeId];
 
@@ -33,14 +33,51 @@ export function DebugEventsDialog({ tribeId, children }: DebugEventsDialogProps)
     enabled: isOpen,
     queryFn: async (c) => {
       const signal = AbortSignal.any([c.signal, AbortSignal.timeout(5000)]);
+
+      // Check for last created event in sessionStorage
+      const lastCreatedEventStr = sessionStorage.getItem('lastCreatedEvent');
+      const lastCreatedEvent = lastCreatedEventStr ? JSON.parse(lastCreatedEventStr) : null;
+
       const results: any = {
         timestamp: new Date().toISOString(),
         tribeId,
         tribePubkey,
         tribeDTag,
         userPubkey: user?.pubkey,
+        lastCreatedEvent,
         queries: [],
       };
+
+      // Query 0: If we have last created event, try to find it by ID
+      if (lastCreatedEvent?.eventId) {
+        try {
+          const lastEventById = await nostr.query([{
+            kinds: [36959],
+            ids: [lastCreatedEvent.eventId],
+            limit: 1,
+          }], { signal });
+          results.queries.push({
+            name: '🎯 Last Created Event (by ID)',
+            filter: { kinds: [36959], ids: [lastCreatedEvent.eventId], limit: 1 },
+            count: lastEventById.length,
+            lastCreatedMatch: lastEventById.length > 0,
+            events: lastEventById.slice(0, 1).map(e => ({
+              id: e.id.slice(0, 8),
+              kind: e.kind,
+              pubkey: e.pubkey.slice(0, 8),
+              dTag: e.tags.find(([n]) => n === 'd')?.[1],
+              title: e.tags.find(([n]) => n === 'title')?.[1],
+              tribe: e.tags.find(([n]) => n === 'tribe')?.[1],
+              created: new Date(e.created_at * 1000).toLocaleString(),
+            })),
+          });
+        } catch (err) {
+          results.queries.push({
+            name: '🎯 Last Created Event (by ID)',
+            error: String(err),
+          });
+        }
+      }
 
       // Query 1: Enhanced events by dTag
       try {
@@ -203,7 +240,7 @@ export function DebugEventsDialog({ tribeId, children }: DebugEventsDialogProps)
     });
   };
 
-  const totalEvents = debugData?.queries.reduce((sum: number, q: any) => 
+  const totalEvents = debugData?.queries.reduce((sum: number, q: any) =>
     sum + (q.count || q.filtered || 0), 0) || 0;
 
   return (
@@ -244,7 +281,7 @@ export function DebugEventsDialog({ tribeId, children }: DebugEventsDialogProps)
                 </div>
               </CardTitle>
             </CardHeader>
-            <CardContent className="space-y-2">
+            <CardContent className="space-y-4">
               <div className="grid grid-cols-2 gap-4 text-sm">
                 <div>
                   <span className="text-muted-foreground">Tribe ID:</span>
@@ -265,6 +302,32 @@ export function DebugEventsDialog({ tribeId, children }: DebugEventsDialogProps)
                   </code>
                 </div>
               </div>
+
+              {/* Last Created Event Info */}
+              {debugData?.lastCreatedEvent && (
+                <div className="bg-purple-500/10 border border-purple-500/20 p-3 rounded-lg space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-semibold">🎯 Last Created Event:</span>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="h-6 text-xs"
+                      onClick={() => {
+                        navigator.clipboard.writeText(JSON.stringify(debugData.lastCreatedEvent, null, 2));
+                        toast({ title: "Copied!", description: "Last event info copied" });
+                      }}
+                    >
+                      Copy
+                    </Button>
+                  </div>
+                  <div className="text-xs font-mono space-y-1">
+                    <div><strong>Title:</strong> {debugData.lastCreatedEvent.title}</div>
+                    <div><strong>ID:</strong> {debugData.lastCreatedEvent.eventId?.slice(0, 16)}...</div>
+                    <div><strong>dTag:</strong> {debugData.lastCreatedEvent.dTag}</div>
+                    <div><strong>Tribe Tag:</strong> {debugData.lastCreatedEvent.tribeTag}</div>
+                  </div>
+                </div>
+              )}
             </CardContent>
           </Card>
 

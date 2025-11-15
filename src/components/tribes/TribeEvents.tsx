@@ -66,22 +66,15 @@ export function TribeEvents({ events, isLoading, canCreateEvents, tribeId, isMod
 
   return (
     <div className="space-y-8">
-      {/* Debug Info - Always show for troubleshooting */}
-      <Card>
-        <CardContent className="py-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2 text-sm">
-              <Bug className="h-4 w-4" />
-              <span className="font-medium">Event Debug:</span>
-              <Badge variant="outline">{events.length} events found</Badge>
-              <span className="text-muted-foreground text-xs">
-                Tribe: {tribeId}
-              </span>
-            </div>
-            <DebugEventsDialog tribeId={tribeId} />
-          </div>
-        </CardContent>
-      </Card>
+      {/* Debug Button - Fixed bottom right */}
+      <div className="fixed bottom-4 right-4 z-50">
+        <DebugEventsDialog tribeId={tribeId}>
+          <Button size="sm" variant="outline" className="shadow-lg">
+            <Bug className="h-4 w-4 mr-2" />
+            Debug ({events.length})
+          </Button>
+        </DebugEventsDialog>
+      </div>
 
       {events.length === 0 ? (
         <Card className="border-dashed">
