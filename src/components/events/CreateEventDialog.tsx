@@ -811,14 +811,25 @@ export function CreateEventDialog({ children, tribeId }: CreateEventDialogProps)
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="description">Description</Label>
+              <Label htmlFor="description" className="flex items-center justify-between">
+                <span>Description</span>
+                <span className={`text-xs ${formData.description.length > 2000 ? 'text-red-500' : formData.description.length > 1800 ? 'text-orange-500' : 'text-muted-foreground'}`}>
+                  {formData.description.length}/2000
+                </span>
+              </Label>
               <Textarea
                 id="description"
                 value={formData.description}
                 onChange={(e) => setFormData(prev => ({ ...prev, description: e.target.value }))}
                 placeholder="What will happen at this event?"
                 rows={3}
+                maxLength={2000}
               />
+              {formData.description.length > 1800 && (
+                <p className="text-xs text-orange-600">
+                  Warning: Content is close to the 2000 character limit
+                </p>
+              )}
             </div>
           </div>
 

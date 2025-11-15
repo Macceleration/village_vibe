@@ -843,8 +843,8 @@ export function validateEnhancedEvent(event: NostrEvent): boolean {
   const visibilityTag = event.tags.find(([name]) => name === 'visibility')?.[1];
   if (visibilityTag && !['public', 'tribe-only', 'private'].includes(visibilityTag)) return false;
 
-  // Validate content length
-  if (event.content.length > 500) {
+  // Validate content length (increased to 2000 for detailed descriptions)
+  if (event.content.length > 2000) {
     console.log('❌ Validation failed: content too long', {
       eventId: event.id.slice(0, 8),
       title: titleTag,
