@@ -53,11 +53,16 @@ export function TribeView({ tribeId }: TribeViewProps) {
                 {failureCount > 0 && (
                   <div className="mt-4 bg-yellow-500/10 border border-yellow-500/20 rounded-lg p-3">
                     <p className="text-sm text-yellow-700 font-medium">
-                      Some relays are slow - retrying (attempt {failureCount + 1}/4)
+                      Retrying... (attempt {failureCount + 1}/5)
                     </p>
                     <p className="text-xs text-yellow-600 mt-1">
-                      This may take up to 10 seconds per attempt
+                      Querying 4 relays with 15s timeout per attempt
                     </p>
+                    {failureCount >= 2 && (
+                      <p className="text-xs text-yellow-600 mt-1 font-medium">
+                        💡 Try clicking Refresh or switching relays if this persists
+                      </p>
+                    )}
                   </div>
                 )}
                 {!failureCount && (
@@ -100,7 +105,7 @@ export function TribeView({ tribeId }: TribeViewProps) {
     );
   }
 
-  if (tribeError || !tribe) {
+  if (tribeError || (!tribe && !tribeLoading)) {
     return (
       <div className="max-w-2xl mx-auto">
         <Card className="border-dashed">
@@ -110,18 +115,27 @@ export function TribeView({ tribeId }: TribeViewProps) {
               <div className="space-y-2">
                 <h3 className="text-lg font-semibold">Tribe not found</h3>
                 <p className="text-muted-foreground">
-                  This tribe doesn't exist or isn't available on this relay
+                  This tribe doesn't exist or isn't available on the current relays
                 </p>
                 {failureCount > 0 && (
-                  <p className="text-xs text-yellow-600">
-                    Tried {failureCount + 1} times - relay may be unreliable
-                  </p>
+                  <div className="mt-4 bg-yellow-500/10 border border-yellow-500/20 rounded-lg p-3">
+                    <p className="text-sm text-yellow-700 font-medium">
+                      Tried {failureCount + 1} times across 4 relays
+                    </p>
+                    <p className="text-xs text-yellow-600 mt-1">
+                      The tribe may have been deleted or relays are slow
+                    </p>
+                  </div>
                 )}
               </div>
               <div className="space-y-3">
                 <Button onClick={() => refetchTribe()} variant="outline" className="w-full">
-                  🔄 Retry Loading Tribe
+                  <RefreshCw className="h-4 w-4 mr-2" />
+                  Try Again
                 </Button>
+                <div className="text-xs text-muted-foreground">
+                  Try switching to a different relay:
+                </div>
                 <RelaySelector className="w-full" />
               </div>
             </div>

@@ -56,17 +56,20 @@ export function useTribe(tribeId: string) {
 
   return useQuery({
     queryKey: ['tribe', tribeId],
-    retry: 3, // Retry on failure
-    retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 30000),
-    staleTime: 5 * 60 * 1000, // Cache for 5 minutes
+    retry: 4, // Retry 4 times for better reliability
+    retryDelay: (attemptIndex) => Math.min(500 * 2 ** attemptIndex, 10000), // Faster retries
+    staleTime: 2 * 60 * 1000, // Cache for 2 minutes (reduced for fresher data)
+    gcTime: 10 * 60 * 1000, // Keep in cache for 10 minutes
     queryFn: async (c) => {
-      const signal = AbortSignal.any([c.signal, AbortSignal.timeout(10000)]);
+      const signal = AbortSignal.any([c.signal, AbortSignal.timeout(15000)]); // Increased to 15s
 
       // Parse tribe coordinates (format: pubkey:d-identifier)
       const [pubkey, dTag] = tribeId.split(':');
       if (!pubkey || !dTag) {
         throw new Error('Invalid tribe ID format');
       }
+
+      console.log('🔍 Querying tribe:', { tribeId, pubkey: pubkey.slice(0, 8), dTag, attempt: c.state.fetchFailureCount + 1 });
 
       const events = await nostr.query([
         {
@@ -77,7 +80,14 @@ export function useTribe(tribeId: string) {
         }
       ], { signal });
 
-      return events[0] || null;
+      console.log('📦 Tribe query result:', { found: events.length > 0, eventId: events[0]?.id.slice(0, 8) });
+
+      // If no tribe found, throw error to trigger retry
+      if (!events[0]) {
+        throw new Error(`Tribe not found: ${tribeId}`);
+      }
+
+      return events[0];
     },
   });
 }
