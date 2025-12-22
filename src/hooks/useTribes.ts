@@ -58,10 +58,11 @@ export function useTribe(tribeId: string) {
     queryKey: ['tribe', tribeId],
     retry: 4, // Retry 4 times for better reliability
     retryDelay: (attemptIndex) => Math.min(500 * 2 ** attemptIndex, 10000), // Faster retries
-    staleTime: 2 * 60 * 1000, // Cache for 2 minutes (reduced for fresher data)
-    gcTime: 10 * 60 * 1000, // Keep in cache for 10 minutes
-    refetchOnMount: true, // Always check for updates on mount
+    staleTime: 30000, // Cache for 30 seconds only (very fresh data)
+    gcTime: 5 * 60 * 1000, // Keep in cache for 5 minutes
+    refetchOnMount: 'always', // Always refetch on mount, even if stale
     refetchOnReconnect: true, // Refetch when reconnecting
+    networkMode: 'always', // Don't pause queries when offline
     queryFn: async (c) => {
       const signal = AbortSignal.any([c.signal, AbortSignal.timeout(15000)]); // Increased to 15s
 
@@ -71,25 +72,42 @@ export function useTribe(tribeId: string) {
         throw new Error('Invalid tribe ID format');
       }
 
-      console.log('🔍 Querying tribe:', { tribeId, pubkey: pubkey.slice(0, 8), dTag, attempt: c.state.fetchFailureCount + 1 });
+      console.log('🔍 Querying tribe:', { tribeId, pubkey: pubkey.slice(0, 8), dTag });
 
-      const events = await nostr.query([
-        {
-          kinds: [34550],
-          authors: [pubkey],
-          '#d': [dTag],
-          limit: 1,
+      try {
+        const events = await nostr.query([
+          {
+            kinds: [34550],
+            authors: [pubkey],
+            '#d': [dTag],
+            limit: 10, // Increased limit in case relay returns multiple versions
+          }
+        ], { signal });
+
+        console.log('📦 Tribe query result:', {
+          found: events.length > 0,
+          count: events.length,
+          eventId: events[0]?.id.slice(0, 8)
+        });
+
+        // If no tribe found, throw error to trigger retry
+        if (events.length === 0) {
+          console.warn('⚠️ Tribe not found on any relay, will retry');
+          throw new Error(`Tribe not found: ${tribeId}`);
         }
-      ], { signal });
 
-      console.log('📦 Tribe query result:', { found: events.length > 0, eventId: events[0]?.id.slice(0, 8) });
+        // If multiple versions found, return the newest one
+        if (events.length > 1) {
+          events.sort((a, b) => b.created_at - a.created_at);
+          console.log('📌 Multiple tribe versions found, using newest:', events[0].created_at);
+        }
 
-      // If no tribe found, throw error to trigger retry
-      if (!events[0]) {
-        throw new Error(`Tribe not found: ${tribeId}`);
+        console.log('✅ Tribe found successfully');
+        return events[0];
+      } catch (err) {
+        console.error('❌ Tribe query error:', err);
+        throw err;
       }
-
-      return events[0];
     },
   });
 }
