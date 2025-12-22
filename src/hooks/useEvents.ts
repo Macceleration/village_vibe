@@ -52,8 +52,10 @@ export function useTribeEvents(tribeId: string, filters: EventFilters = {}) {
   return useQuery({
     queryKey: ['tribe-events', tribeId, filters],
     staleTime: 30000,
+    retry: 3, // Retry 3 times on failure
+    retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 30000), // Exponential backoff
     queryFn: async (c) => {
-      const signal = AbortSignal.any([c.signal, AbortSignal.timeout(1500)]);
+      const signal = AbortSignal.any([c.signal, AbortSignal.timeout(5000)]); // Increased timeout
 
       // Parse tribe coordinates
       const [pubkey, dTag] = tribeId.split(':');

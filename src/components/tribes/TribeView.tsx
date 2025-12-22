@@ -22,12 +22,27 @@ interface TribeViewProps {
 
 export function TribeView({ tribeId }: TribeViewProps) {
   const { user } = useCurrentUser();
-  const { data: tribe, isLoading: tribeLoading, error: tribeError } = useTribe(tribeId);
+  const { data: tribe, isLoading: tribeLoading, error: tribeError, failureCount } = useTribe(tribeId);
   const { data: events, isLoading: eventsLoading } = useTribeEvents(tribeId);
+
+  console.log('🔄 Tribe query status:', {
+    tribeId,
+    isLoading: tribeLoading,
+    hasData: !!tribe,
+    failureCount,
+    error: tribeError
+  });
 
   if (tribeLoading) {
     return (
       <div className="max-w-4xl mx-auto space-y-8">
+        {failureCount > 0 && (
+          <div className="bg-yellow-500/10 border border-yellow-500/20 rounded-lg p-4 text-center">
+            <p className="text-sm text-yellow-700">
+              Relay is slow... retrying (attempt {failureCount + 1}/4)
+            </p>
+          </div>
+        )}
         <div className="space-y-4">
           <div className="flex items-center space-x-4">
             <Skeleton className="h-20 w-20 rounded-full" />
