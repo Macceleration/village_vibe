@@ -235,6 +235,7 @@ export function TribeView({ tribeId }: TribeViewProps) {
             canCreateEvents={canCreateEvents}
             tribeId={tribeId}
             isModerator={isModerator}
+            villageSlug={tribe.tags.find(([name]) => name === 'village')?.[1]}
           />
         </TabsContent>
 

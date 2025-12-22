@@ -20,9 +20,10 @@ interface EventCardProps {
   event: NostrEvent;
   isPast?: boolean;
   showModerationActions?: boolean;
+  villageSlug?: string;
 }
 
-export function EventCard({ event, isPast = false, showModerationActions = false }: EventCardProps) {
+export function EventCard({ event, isPast = false, showModerationActions = false, villageSlug }: EventCardProps) {
   const { user } = useCurrentUser();
   const dTag = event.tags.find(([name]) => name === 'd')?.[1] || '';
   const titleTag = event.tags.find(([name]) => name === 'title')?.[1];
@@ -148,20 +149,12 @@ export function EventCard({ event, isPast = false, showModerationActions = false
           </Button>
 
           {showModerationActions && user && (
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="outline" size="sm">
-                  <MoreHorizontal className="h-4 w-4" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
-                <EventModerationDialog event={event}>
-                  <DropdownMenuItem onSelect={(e) => e.preventDefault()}>
-                    Promote to Villages
-                  </DropdownMenuItem>
-                </EventModerationDialog>
-              </DropdownMenuContent>
-            </DropdownMenu>
+            <EventModerationDialog event={event} villageSlug={villageSlug}>
+              <Button variant="outline" size="sm">
+                <MoreHorizontal className="h-4 w-4 mr-1" />
+                Moderate
+              </Button>
+            </EventModerationDialog>
           )}
         </div>
       </CardContent>

@@ -14,9 +14,10 @@ interface TribeEventsProps {
   canCreateEvents: boolean;
   tribeId: string;
   isModerator?: boolean;
+  villageSlug?: string;
 }
 
-export function TribeEvents({ events, isLoading, canCreateEvents, tribeId, isModerator = false }: TribeEventsProps) {
+export function TribeEvents({ events, isLoading, canCreateEvents, tribeId, isModerator = false, villageSlug }: TribeEventsProps) {
   if (isLoading) {
     return (
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -117,6 +118,7 @@ export function TribeEvents({ events, isLoading, canCreateEvents, tribeId, isMod
                     key={event.id}
                     event={event}
                     showModerationActions={isModerator}
+                    villageSlug={villageSlug}
                   />
                 ))}
               </div>
@@ -138,6 +140,7 @@ export function TribeEvents({ events, isLoading, canCreateEvents, tribeId, isMod
                     event={event}
                     isPast
                     showModerationActions={isModerator}
+                    villageSlug={villageSlug}
                   />
                 ))}
               </div>
