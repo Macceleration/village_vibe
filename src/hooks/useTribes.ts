@@ -60,6 +60,8 @@ export function useTribe(tribeId: string) {
     retryDelay: (attemptIndex) => Math.min(500 * 2 ** attemptIndex, 10000), // Faster retries
     staleTime: 2 * 60 * 1000, // Cache for 2 minutes (reduced for fresher data)
     gcTime: 10 * 60 * 1000, // Keep in cache for 10 minutes
+    refetchOnMount: true, // Always check for updates on mount
+    refetchOnReconnect: true, // Refetch when reconnecting
     queryFn: async (c) => {
       const signal = AbortSignal.any([c.signal, AbortSignal.timeout(15000)]); // Increased to 15s
 
