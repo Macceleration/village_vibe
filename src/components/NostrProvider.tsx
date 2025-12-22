@@ -23,7 +23,8 @@ const NostrProvider: React.FC<NostrProviderProps> = (props) => {
   // Update refs when config changes
   useEffect(() => {
     relayUrl.current = config.relayUrl;
-    queryClient.resetQueries();
+    // Don't reset queries on relay change - let existing data persist
+    // queryClient.resetQueries();
   }, [config.relayUrl, queryClient]);
 
   // Initialize NPool only once
@@ -33,13 +34,39 @@ const NostrProvider: React.FC<NostrProviderProps> = (props) => {
         return new NRelay1(url);
       },
       reqRouter(filters) {
-        return new Map([[relayUrl.current, filters]]);
+        // Query from multiple relays for better reliability and content discovery
+        const relaysToQuery = new Map();
+
+        // Primary relay (user selected)
+        relaysToQuery.set(relayUrl.current, filters);
+
+        // Add Ditto as a fallback (consistently good performance)
+        if (relayUrl.current !== 'wss://ditto.pub/relay') {
+          relaysToQuery.set('wss://ditto.pub/relay', filters);
+        }
+
+        // Add one more preset relay for redundancy (up to 3 total)
+        if (presetRelays && presetRelays.length > 0) {
+          const additionalRelay = presetRelays.find(r =>
+            r.url !== relayUrl.current &&
+            r.url !== 'wss://ditto.pub/relay'
+          );
+
+          if (additionalRelay) {
+            relaysToQuery.set(additionalRelay.url, filters);
+          }
+        }
+
+        return relaysToQuery;
       },
       eventRouter(_event: NostrEvent) {
-        // Publish to the selected relay
+        // Publish to the selected relay and fallback relays
         const allRelays = new Set<string>([relayUrl.current]);
 
-        // Also publish to the preset relays, capped to 5
+        // Always include Ditto for publishing
+        allRelays.add('wss://ditto.pub/relay');
+
+        // Also publish to the preset relays, capped to 5 total
         for (const { url } of (presetRelays ?? [])) {
           allRelays.add(url);
 

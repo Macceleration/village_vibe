@@ -11,7 +11,7 @@ export function useMyTribes(pubkey?: string) {
     queryFn: async (c) => {
       if (!pubkey) return [];
 
-      const signal = AbortSignal.any([c.signal, AbortSignal.timeout(1500)]);
+      const signal = AbortSignal.any([c.signal, AbortSignal.timeout(5000)]);
 
       // Query for community definitions where user is a moderator/member
       const events = await nostr.query([
@@ -35,7 +35,7 @@ export function usePublicTribes() {
   return useQuery({
     queryKey: ['public-tribes'],
     queryFn: async (c) => {
-      const signal = AbortSignal.any([c.signal, AbortSignal.timeout(1500)]);
+      const signal = AbortSignal.any([c.signal, AbortSignal.timeout(5000)]);
 
       const events = await nostr.query([
         {
@@ -88,7 +88,7 @@ export function useTribeJoinRequests(tribeId: string, userPubkey?: string) {
   return useQuery({
     queryKey: ['tribe-join-requests', tribeId, userPubkey],
     queryFn: async (c) => {
-      const signal = AbortSignal.any([c.signal, AbortSignal.timeout(1500)]);
+      const signal = AbortSignal.any([c.signal, AbortSignal.timeout(5000)]);
 
       const filter: {
         kinds: number[];
@@ -140,7 +140,7 @@ export function useTribeMemberCount(tribeId: string) {
     queryFn: async (c) => {
       if (!tribeId) return 0;
 
-      const signal = AbortSignal.any([c.signal, AbortSignal.timeout(1500)]);
+      const signal = AbortSignal.any([c.signal, AbortSignal.timeout(5000)]);
 
       // Parse tribe coordinates (format: pubkey:d-identifier)
       const [pubkey, dTag] = tribeId.split(':');
@@ -190,7 +190,7 @@ export function useTribeName(tribeTag?: string) {
     queryFn: async (c) => {
       if (!tribeTag) return null;
 
-      const signal = AbortSignal.any([c.signal, AbortSignal.timeout(1500)]);
+      const signal = AbortSignal.any([c.signal, AbortSignal.timeout(5000)]);
 
       // Query for community definitions with this d tag
       const events = await nostr.query([
