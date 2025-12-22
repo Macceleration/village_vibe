@@ -22,7 +22,7 @@ interface TribeViewProps {
 
 export function TribeView({ tribeId }: TribeViewProps) {
   const { user } = useCurrentUser();
-  const { data: tribe, isLoading: tribeLoading, error: tribeError, failureCount } = useTribe(tribeId);
+  const { data: tribe, isLoading: tribeLoading, error: tribeError, failureCount, refetch: refetchTribe } = useTribe(tribeId);
   const { data: events, isLoading: eventsLoading } = useTribeEvents(tribeId);
 
   console.log('🔄 Tribe query status:', {
@@ -84,8 +84,18 @@ export function TribeView({ tribeId }: TribeViewProps) {
                 <p className="text-muted-foreground">
                   This tribe doesn't exist or isn't available on this relay
                 </p>
+                {failureCount > 0 && (
+                  <p className="text-xs text-yellow-600">
+                    Tried {failureCount + 1} times - relay may be unreliable
+                  </p>
+                )}
               </div>
-              <RelaySelector className="w-full" />
+              <div className="space-y-3">
+                <Button onClick={() => refetchTribe()} variant="outline" className="w-full">
+                  🔄 Retry Loading Tribe
+                </Button>
+                <RelaySelector className="w-full" />
+              </div>
             </div>
           </CardContent>
         </Card>

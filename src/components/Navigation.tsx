@@ -79,23 +79,39 @@ export function Navigation() {
               About
             </Link>
 
-            {/* Relay Status Indicator */}
-            <div className="flex items-center gap-2 text-xs">
-              {relayHealth?.status === 'connected' ? (
-                <div className="flex items-center gap-1 text-green-600">
-                  <Wifi className="h-3 w-3" />
-                  <span className="hidden lg:inline">{relayName}</span>
+            {/* Relay Status Indicator - Clickable to switch relays */}
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="ghost" size="sm" className="h-8 gap-2 text-xs px-2">
+                  {relayHealth?.status === 'connected' ? (
+                    <>
+                      <Wifi className="h-3 w-3 text-green-600" />
+                      <span className="hidden lg:inline text-green-600">{relayName}</span>
+                    </>
+                  ) : (
+                    <>
+                      <WifiOff className="h-3 w-3 text-red-600" />
+                      <span className="hidden lg:inline text-red-600">Disconnected</span>
+                    </>
+                  )}
+                  {relayHealth?.latency && relayHealth.latency > 1000 && (
+                    <Badge variant="destructive" className="text-[10px] h-4 ml-1">Slow</Badge>
+                  )}
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-64">
+                <div className="p-2 space-y-2">
+                  <div className="text-xs font-semibold">Switch Relay</div>
+                  <RelaySelector className="w-full" />
+                  {relayHealth && (
+                    <div className="text-[10px] text-muted-foreground space-y-1 pt-2 border-t">
+                      <div>Status: {relayHealth.status}</div>
+                      {relayHealth.latency && <div>Latency: {relayHealth.latency}ms</div>}
+                    </div>
+                  )}
                 </div>
-              ) : (
-                <div className="flex items-center gap-1 text-red-600">
-                  <WifiOff className="h-3 w-3" />
-                  <span className="hidden lg:inline">Disconnected</span>
-                </div>
-              )}
-              {relayHealth?.latency && relayHealth.latency > 1000 && (
-                <Badge variant="destructive" className="text-[10px] h-4">Slow</Badge>
-              )}
-            </div>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
 
           {/* User Area */}
