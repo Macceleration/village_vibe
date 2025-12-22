@@ -53,12 +53,17 @@ export function TribeView({ tribeId }: TribeViewProps) {
                 {failureCount > 0 && (
                   <div className="mt-4 bg-yellow-500/10 border border-yellow-500/20 rounded-lg p-3">
                     <p className="text-sm text-yellow-700 font-medium">
-                      Retrying... (attempt {failureCount + 1}/5)
+                      Retrying... (attempt {failureCount + 1}/6)
                     </p>
                     <p className="text-xs text-yellow-600 mt-1">
-                      Querying 4 relays with 15s timeout per attempt
+                      Querying 4 relays with 20s timeout per attempt
                     </p>
-                    {failureCount >= 2 && (
+                    {failureCount >= 1 && (
+                      <p className="text-xs text-yellow-600 mt-1">
+                        ⏱️ Relays are slow - this is normal, please wait
+                      </p>
+                    )}
+                    {failureCount >= 3 && (
                       <p className="text-xs text-yellow-600 mt-1 font-medium">
                         💡 Try clicking Refresh or switching relays if this persists
                       </p>

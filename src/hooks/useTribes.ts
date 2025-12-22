@@ -56,8 +56,11 @@ export function useTribe(tribeId: string) {
 
   return useQuery({
     queryKey: ['tribe', tribeId],
-    retry: 4, // Retry 4 times for better reliability
-    retryDelay: (attemptIndex) => Math.min(500 * 2 ** attemptIndex, 10000), // Faster retries
+    retry: 5, // Retry 5 times for maximum reliability
+    retryDelay: (attemptIndex) => {
+      // Very aggressive retry schedule: 250ms, 500ms, 1s, 2s, 4s
+      return Math.min(250 * 2 ** attemptIndex, 10000);
+    },
     staleTime: 30000, // Cache for 30 seconds only (very fresh data)
     gcTime: 5 * 60 * 1000, // Keep in cache for 5 minutes
     refetchOnMount: 'always', // Always refetch on mount, even if stale
@@ -75,6 +78,9 @@ export function useTribe(tribeId: string) {
       console.log('🔍 Querying tribe:', { tribeId, pubkey: pubkey.slice(0, 8), dTag });
 
       try {
+        // Use a longer timeout for better reliability with slow relays
+        const extendedSignal = AbortSignal.any([c.signal, AbortSignal.timeout(20000)]); // 20s instead of 15s
+
         const events = await nostr.query([
           {
             kinds: [34550],
@@ -82,7 +88,7 @@ export function useTribe(tribeId: string) {
             '#d': [dTag],
             limit: 10, // Increased limit in case relay returns multiple versions
           }
-        ], { signal });
+        ], { signal: extendedSignal });
 
         console.log('📦 Tribe query result:', {
           found: events.length > 0,
