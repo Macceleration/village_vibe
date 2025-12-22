@@ -100,9 +100,9 @@ export function Navigation() {
                   )}
                 </Button>
               </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-64">
+              <DropdownMenuContent align="end" className="w-72">
                 <div className="p-2 space-y-2">
-                  <div className="text-xs font-semibold">Switch Relay</div>
+                  <div className="text-xs font-semibold">Primary Relay</div>
                   <RelaySelector className="w-full" />
                   {relayHealth && (
                     <div className="text-[10px] text-muted-foreground space-y-1 pt-2 border-t">
@@ -110,6 +110,13 @@ export function Navigation() {
                       {relayHealth.latency && <div>Latency: {relayHealth.latency}ms</div>}
                     </div>
                   )}
+                  <div className="text-[10px] text-muted-foreground space-y-1 pt-2 border-t">
+                    <div className="font-medium mb-1">Multi-Relay Queries</div>
+                    <div>• Primary: {relayName}</div>
+                    <div>• Backup: Ditto</div>
+                    <div>• Fallback: {config.relayUrl !== 'wss://ditto.pub/relay' ? 'Nostr.Band or Damus' : 'Nostr.Band'}</div>
+                    <div className="pt-1 italic">Queries check all relays for best results</div>
+                  </div>
                 </div>
               </DropdownMenuContent>
             </DropdownMenu>
