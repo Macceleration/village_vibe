@@ -32,7 +32,7 @@ const queryClient = new QueryClient({
 
 const defaultConfig: AppConfig = {
   theme: "light",
-  relayUrl: "wss://relay.primal.net",
+  relayUrl: "wss://ditto.pub/relay",
 };
 
 const presetRelays = [

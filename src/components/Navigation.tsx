@@ -3,6 +3,7 @@ import { useCurrentUser } from "@/hooks/useCurrentUser";
 import { useRelayHealth } from "@/hooks/useRelayHealth";
 import { useAppContext } from "@/hooks/useAppContext";
 import { LoginArea } from "@/components/auth/LoginArea";
+import { RelaySelector } from "@/components/RelaySelector";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
