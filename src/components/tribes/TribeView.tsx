@@ -118,12 +118,15 @@ export function TribeView({ tribeId }: TribeViewProps) {
                   This tribe doesn't exist or isn't available on the current relays
                 </p>
                 {failureCount > 0 && (
-                  <div className="mt-4 bg-yellow-500/10 border border-yellow-500/20 rounded-lg p-3">
-                    <p className="text-sm text-yellow-700 font-medium">
-                      Tried {failureCount + 1} times across 4 relays
+                  <div className="mt-4 bg-red-500/10 border border-red-500/20 rounded-lg p-3">
+                    <p className="text-sm text-red-700 font-medium">
+                      Failed after {failureCount + 1} attempts across 4 relays
                     </p>
-                    <p className="text-xs text-yellow-600 mt-1">
-                      The tribe may have been deleted or relays are slow
+                    <p className="text-xs text-red-600 mt-1">
+                      The tribe definition (kind 34550) could not be retrieved
+                    </p>
+                    <p className="text-xs text-red-600 mt-1">
+                      Try clicking "Try Again" or switching to the Ditto relay
                     </p>
                   </div>
                 )}
@@ -155,9 +158,10 @@ export function TribeView({ tribeId }: TribeViewProps) {
   const isModerator = userRole === 'moderator' || isAdmin;
 
   // Function to force refresh all tribe data
-  const handleRefreshAll = () => {
-    refetchTribe();
-    refetchEvents();
+  const handleRefreshAll = async () => {
+    // Force refetch with cache bypass
+    await refetchTribe();
+    await refetchEvents();
   };
 
   const isRefreshing = tribeFetching || eventsFetching;
