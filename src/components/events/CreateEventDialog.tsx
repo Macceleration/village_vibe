@@ -249,6 +249,7 @@ export function CreateEventDialog({ children, tribeId }: CreateEventDialogProps)
         place: formData.place.trim(),
         lat: formData.lat,
         lon: formData.lon,
+        image: formData.image || undefined, // Include uploaded image
         etypes: formData.etypes,
         visibility: formData.visibility,
         villages: formData.villages,

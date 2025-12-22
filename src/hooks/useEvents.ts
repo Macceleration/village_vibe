@@ -544,6 +544,7 @@ export function useCreateEnhancedEvent() {
       place: string;
       lat: number;
       lon: number;
+      image?: string; // Event image URL
       etypes: EventType[];
       visibility: EventVisibility;
       villages?: string[];
@@ -571,6 +572,11 @@ export function useCreateEnhancedEvent() {
         ['visibility', data.visibility],
         ['alt', 'Community event for local participation'],
       ];
+
+      // Add image tag if provided
+      if (data.image) {
+        tags.push(['image', data.image]);
+      }
 
       // Add end time if provided
       if (data.end) {
