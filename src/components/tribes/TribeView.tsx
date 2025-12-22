@@ -9,12 +9,13 @@ import { TribeServices } from "../services/TribeServices";
 import { TribeStories } from "../stories/TribeStories";
 import { CreateEventDialog } from "../events/CreateEventDialog";
 import { LoginArea } from "@/components/auth/LoginArea";
+import { RelayStatusIndicator } from "@/components/RelayStatusIndicator";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { RelaySelector } from "@/components/RelaySelector";
-import { Plus, Calendar, Users, Trophy, Settings, HandHeart, BookOpen } from "lucide-react";
+import { Plus, Calendar, Users, Trophy, Settings, HandHeart, BookOpen, RefreshCw } from "lucide-react";
 
 interface TribeViewProps {
   tribeId: string;
@@ -22,8 +23,8 @@ interface TribeViewProps {
 
 export function TribeView({ tribeId }: TribeViewProps) {
   const { user } = useCurrentUser();
-  const { data: tribe, isLoading: tribeLoading, error: tribeError, failureCount, refetch: refetchTribe } = useTribe(tribeId);
-  const { data: events, isLoading: eventsLoading } = useTribeEvents(tribeId);
+  const { data: tribe, isLoading: tribeLoading, error: tribeError, failureCount, refetch: refetchTribe, isFetching: tribeFetching } = useTribe(tribeId);
+  const { data: events, isLoading: eventsLoading, refetch: refetchEvents, isFetching: eventsFetching } = useTribeEvents(tribeId);
 
   console.log('🔄 Tribe query status:', {
     tribeId,
@@ -45,8 +46,9 @@ export function TribeView({ tribeId }: TribeViewProps) {
               </div>
               <div className="space-y-2">
                 <h2 className="text-2xl font-bold">Loading Tribe</h2>
-                <p className="text-muted-foreground">
-                  Querying 4 Nostr relays for tribe data...
+                <RelayStatusIndicator />
+                <p className="text-muted-foreground text-sm">
+                  Fetching tribe details from multiple relays...
                 </p>
                 {failureCount > 0 && (
                   <div className="mt-4 bg-yellow-500/10 border border-yellow-500/20 rounded-lg p-3">
@@ -138,8 +140,28 @@ export function TribeView({ tribeId }: TribeViewProps) {
   const isAdmin = userRole === 'admin';
   const isModerator = userRole === 'moderator' || isAdmin;
 
+  // Function to force refresh all tribe data
+  const handleRefreshAll = () => {
+    refetchTribe();
+    refetchEvents();
+  };
+
+  const isRefreshing = tribeFetching || eventsFetching;
+
   return (
     <div className="max-w-6xl mx-auto space-y-8">
+      <div className="flex justify-end">
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={handleRefreshAll}
+          disabled={isRefreshing}
+        >
+          <RefreshCw className={`h-4 w-4 mr-2 ${isRefreshing ? 'animate-spin' : ''}`} />
+          {isRefreshing ? 'Refreshing...' : 'Refresh'}
+        </Button>
+      </div>
+
       <TribeHeader tribe={tribe} />
 
       <Tabs defaultValue="events" className="space-y-6">

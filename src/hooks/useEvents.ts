@@ -73,11 +73,15 @@ export function useTribeEvents(tribeId: string, filters: EventFilters = {}) {
       // (Relay doesn't index custom tags like 'tribe')
       try {
         console.log('📡 Querying all events by tribe author:', pubkey.slice(0, 8));
+
+        // Use a smaller initial limit for faster loading, can be increased via filters
+        const queryLimit = filters.limit || 100;
+
         const allEnhancedEvents = await nostr.query([
           {
             kinds: [36959], // Enhanced events
             authors: [pubkey], // Query by tribe owner
-            limit: filters.limit || 200,
+            limit: queryLimit,
           }
         ], { signal });
         console.log('📦 All enhanced events by author:', allEnhancedEvents.length);
