@@ -45,11 +45,17 @@ const NostrProvider: React.FC<NostrProviderProps> = (props) => {
           relaysToQuery.set('wss://ditto.pub/relay', filters);
         }
 
-        // Add one more preset relay for redundancy (up to 3 total)
+        // Add Damus as a reliable fallback
+        if (relayUrl.current !== 'wss://relay.damus.io') {
+          relaysToQuery.set('wss://relay.damus.io', filters);
+        }
+
+        // Add one more preset relay for redundancy (up to 4 total)
         if (presetRelays && presetRelays.length > 0) {
           const additionalRelay = presetRelays.find(r =>
             r.url !== relayUrl.current &&
-            r.url !== 'wss://ditto.pub/relay'
+            r.url !== 'wss://ditto.pub/relay' &&
+            r.url !== 'wss://relay.damus.io'
           );
 
           if (additionalRelay) {

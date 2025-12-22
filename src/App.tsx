@@ -6,6 +6,7 @@ import { createHead, UnheadProvider } from '@unhead/react/client';
 import { InferSeoMetaPlugin } from '@unhead/addons';
 import { Suspense } from 'react';
 import NostrProvider from '@/components/NostrProvider';
+import { GlobalLoadingOverlay } from '@/components/GlobalLoadingOverlay';
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { NostrLoginProvider } from '@nostrify/react/login';
@@ -26,8 +27,8 @@ const queryClient = new QueryClient({
       refetchOnWindowFocus: false,
       staleTime: 60000, // 1 minute
       gcTime: Infinity,
-      retry: 2, // Retry failed queries twice
-      retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 5000), // Exponential backoff
+      retry: 3, // Retry failed queries 3 times
+      retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 10000), // Exponential backoff up to 10s
     },
   },
 });
@@ -39,9 +40,9 @@ const defaultConfig: AppConfig = {
 
 const presetRelays = [
   { url: 'wss://ditto.pub/relay', name: 'Ditto' },
-  { url: 'wss://relay.nostr.band', name: 'Nostr.Band' },
   { url: 'wss://relay.damus.io', name: 'Damus' },
   { url: 'wss://relay.primal.net', name: 'Primal' },
+  { url: 'wss://nos.lol', name: 'Nos' },
 ];
 
 export function App() {
@@ -54,6 +55,7 @@ export function App() {
               <NWCProvider>
                 <TooltipProvider>
                   <Toaster />
+                  <GlobalLoadingOverlay />
                   <Suspense>
                     <AppRouter />
                   </Suspense>

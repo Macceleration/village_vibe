@@ -111,11 +111,12 @@ export function Navigation() {
                     </div>
                   )}
                   <div className="text-[10px] text-muted-foreground space-y-1 pt-2 border-t">
-                    <div className="font-medium mb-1">Multi-Relay Queries</div>
+                    <div className="font-medium mb-1">Multi-Relay Queries (4 relays)</div>
                     <div>• Primary: {relayName}</div>
                     <div>• Backup: Ditto</div>
-                    <div>• Fallback: {config.relayUrl !== 'wss://ditto.pub/relay' ? 'Nostr.Band or Damus' : 'Nostr.Band'}</div>
-                    <div className="pt-1 italic">Queries check all relays for best results</div>
+                    <div>• Backup: Damus</div>
+                    <div>• Fallback: Primal or Nos</div>
+                    <div className="pt-1 italic">All queries have 10s timeout + 3 retries</div>
                   </div>
                 </div>
               </DropdownMenuContent>
