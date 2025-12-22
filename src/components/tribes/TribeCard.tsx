@@ -4,7 +4,7 @@ import { useCurrentUser } from "@/hooks/useCurrentUser";
 import { useJoinTribe } from "@/hooks/useTribesActions";
 import { useTribeMemberCount, useTribeJoinRequests } from "@/hooks/useTribes";
 import { useNostr } from '@nostrify/react';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -18,6 +18,7 @@ interface TribeCardProps {
 export function TribeCard({ tribe }: TribeCardProps) {
   const { user } = useCurrentUser();
   const { nostr } = useNostr();
+  const queryClient = useQueryClient();
   const { joinTribe, isPending: isJoining } = useJoinTribe();
 
   const dTag = tribe.tags.find(([name]) => name === 'd')?.[1] || '';
@@ -66,6 +67,26 @@ export function TribeCard({ tribe }: TribeCardProps) {
   // Check if user is already a member
   const isMember = user && tribe.tags.some(([name, pubkey]) => name === 'p' && pubkey === user.pubkey);
   const isCreator = user?.pubkey === tribe.pubkey;
+
+  // Prefetch tribe data on hover for instant loading
+  const prefetchTribe = () => {
+    queryClient.prefetchQuery({
+      queryKey: ['tribe', tribeId],
+      queryFn: async () => {
+        const [pubkey, dTag] = tribeId.split(':');
+        const events = await nostr.query([
+          {
+            kinds: [34550],
+            authors: [pubkey],
+            '#d': [dTag],
+            limit: 1,
+          }
+        ], { signal: AbortSignal.timeout(10000) });
+        return events[0] || null;
+      },
+      staleTime: 5 * 60 * 1000,
+    });
+  };
 
   const getJoinButtonContent = () => {
     if (isJoining) {
@@ -150,7 +171,14 @@ export function TribeCard({ tribe }: TribeCardProps) {
         </div>
 
         <div className="flex gap-2">
-          <Button asChild size="sm" variant="outline" className="flex-1">
+          <Button
+            asChild
+            size="sm"
+            variant="outline"
+            className="flex-1"
+            onMouseEnter={prefetchTribe}
+            onFocus={prefetchTribe}
+          >
             <Link to={`/tribe/${tribeId}`}>
               <Calendar className="h-3 w-3 mr-1" />
               View

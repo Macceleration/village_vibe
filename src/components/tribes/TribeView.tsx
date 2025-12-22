@@ -36,13 +36,39 @@ export function TribeView({ tribeId }: TribeViewProps) {
   if (tribeLoading) {
     return (
       <div className="max-w-4xl mx-auto space-y-8">
-        {failureCount > 0 && (
-          <div className="bg-yellow-500/10 border border-yellow-500/20 rounded-lg p-4 text-center">
-            <p className="text-sm text-yellow-700">
-              Relay is slow... retrying (attempt {failureCount + 1}/4)
-            </p>
-          </div>
-        )}
+        {/* Loading Header with Status */}
+        <Card className="border-2 border-primary/20">
+          <CardContent className="py-8 px-8">
+            <div className="flex flex-col items-center text-center space-y-4">
+              <div className="relative">
+                <div className="h-16 w-16 rounded-full border-4 border-primary/20 border-t-primary animate-spin" />
+              </div>
+              <div className="space-y-2">
+                <h2 className="text-2xl font-bold">Loading Tribe</h2>
+                <p className="text-muted-foreground">
+                  Querying 4 Nostr relays for tribe data...
+                </p>
+                {failureCount > 0 && (
+                  <div className="mt-4 bg-yellow-500/10 border border-yellow-500/20 rounded-lg p-3">
+                    <p className="text-sm text-yellow-700 font-medium">
+                      Some relays are slow - retrying (attempt {failureCount + 1}/4)
+                    </p>
+                    <p className="text-xs text-yellow-600 mt-1">
+                      This may take up to 10 seconds per attempt
+                    </p>
+                  </div>
+                )}
+                {!failureCount && (
+                  <p className="text-xs text-muted-foreground">
+                    Usually loads within 2-5 seconds
+                  </p>
+                )}
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Skeleton Content */}
         <div className="space-y-4">
           <div className="flex items-center space-x-4">
             <Skeleton className="h-20 w-20 rounded-full" />

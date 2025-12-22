@@ -51,11 +51,11 @@ export function useTribeEvents(tribeId: string, filters: EventFilters = {}) {
 
   return useQuery({
     queryKey: ['tribe-events', tribeId, filters],
-    staleTime: 30000,
+    staleTime: 60000, // Cache for 1 minute
     retry: 3, // Retry 3 times on failure
     retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 30000), // Exponential backoff
     queryFn: async (c) => {
-      const signal = AbortSignal.any([c.signal, AbortSignal.timeout(5000)]); // Increased timeout
+      const signal = AbortSignal.any([c.signal, AbortSignal.timeout(10000)]); // 10s timeout
 
       // Parse tribe coordinates
       const [pubkey, dTag] = tribeId.split(':');

@@ -58,8 +58,9 @@ export function useTribe(tribeId: string) {
     queryKey: ['tribe', tribeId],
     retry: 3, // Retry on failure
     retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 30000),
+    staleTime: 5 * 60 * 1000, // Cache for 5 minutes
     queryFn: async (c) => {
-      const signal = AbortSignal.any([c.signal, AbortSignal.timeout(5000)]);
+      const signal = AbortSignal.any([c.signal, AbortSignal.timeout(10000)]);
 
       // Parse tribe coordinates (format: pubkey:d-identifier)
       const [pubkey, dTag] = tribeId.split(':');
