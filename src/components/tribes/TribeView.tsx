@@ -1,3 +1,5 @@
+import { useEffect } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { useTribe } from "@/hooks/useTribes";
 import { useTribeEvents } from "@/hooks/useEvents";
 import { useCurrentUser } from "@/hooks/useCurrentUser";
@@ -22,7 +24,14 @@ interface TribeViewProps {
 }
 
 export function TribeView({ tribeId }: TribeViewProps) {
+  const queryClient = useQueryClient();
   const { user } = useCurrentUser();
+
+  // Invalidate queries when tribeId changes to force fresh fetch
+  useEffect(() => {
+    queryClient.invalidateQueries({ queryKey: ['tribe', tribeId] });
+    queryClient.invalidateQueries({ queryKey: ['tribe-events', tribeId] });
+  }, [tribeId, queryClient]);
   const { data: tribe, isLoading: tribeLoading, error: tribeError, failureCount, refetch: refetchTribe, isFetching: tribeFetching } = useTribe(tribeId);
 
   // Only fetch events after tribe query completes (success or failure)
