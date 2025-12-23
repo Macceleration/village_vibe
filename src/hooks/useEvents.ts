@@ -45,12 +45,17 @@ export interface EventFilters {
 }
 
 // Hook to get events for a specific tribe
-export function useTribeEvents(tribeId: string, filters: EventFilters = {}) {
+export function useTribeEvents(
+  tribeId: string,
+  filters: EventFilters = {},
+  options: { enabled?: boolean } = {}
+) {
   const { nostr } = useNostr();
   const { user } = useCurrentUser();
 
   return useQuery({
     queryKey: ['tribe-events', tribeId, filters],
+    enabled: options.enabled !== false, // Default to enabled unless explicitly disabled
     staleTime: 60000, // Cache for 1 minute
     retry: 3, // Retry 3 times on failure
     retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 30000), // Exponential backoff

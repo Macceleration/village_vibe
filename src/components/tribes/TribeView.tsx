@@ -24,7 +24,14 @@ interface TribeViewProps {
 export function TribeView({ tribeId }: TribeViewProps) {
   const { user } = useCurrentUser();
   const { data: tribe, isLoading: tribeLoading, error: tribeError, failureCount, refetch: refetchTribe, isFetching: tribeFetching } = useTribe(tribeId);
-  const { data: events, isLoading: eventsLoading, refetch: refetchEvents, isFetching: eventsFetching } = useTribeEvents(tribeId);
+
+  // Only fetch events after tribe query completes (success or failure)
+  // This prevents race condition where events query uses stale cache
+  const { data: events, isLoading: eventsLoading, refetch: refetchEvents, isFetching: eventsFetching } = useTribeEvents(
+    tribeId,
+    {},
+    { enabled: !tribeLoading } // Wait for tribe query to complete
+  );
 
   console.log('🔄 Tribe query status:', {
     tribeId,
