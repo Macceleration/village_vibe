@@ -57,7 +57,7 @@ export function useTribeEvents(
     queryKey: ['tribe-events', tribeId, filters],
     enabled: options.enabled !== false, // Default to enabled unless explicitly disabled
     staleTime: 0, // Always fetch fresh data
-    gcTime: 1000 * 60, // Keep in cache for 1 minute
+    gcTime: 0, // Don't cache at all
     retry: 3, // Retry 3 times on failure
     retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 30000), // Exponential backoff
     queryFn: async (c) => {

@@ -62,11 +62,12 @@ export function useTribe(tribeId: string) {
       return Math.min(250 * 2 ** attemptIndex, 10000);
     },
     staleTime: 0, // Always fetch fresh data
-    gcTime: 1000 * 60, // Keep in cache for 1 minute
+    gcTime: 0, // Don't cache at all
     refetchOnMount: true, // Always refetch on mount
     refetchOnReconnect: true, // Refetch when reconnecting
     refetchOnWindowFocus: false, // Don't refetch on window focus
     networkMode: 'always', // Don't pause queries when offline
+    throwOnError: false, // Don't throw errors, return them in error state
     queryFn: async (c) => {
       const signal = AbortSignal.any([c.signal, AbortSignal.timeout(15000)]); // Increased to 15s
 
