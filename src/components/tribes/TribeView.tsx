@@ -36,12 +36,16 @@ export function TribeView({ tribeId }: TribeViewProps) {
   console.log('🔄 Tribe query status:', {
     tribeId,
     isLoading: tribeLoading,
+    isFetching: tribeFetching,
     hasData: !!tribe,
     failureCount,
     error: tribeError
   });
 
-  if (tribeLoading) {
+  // Show loading state if:
+  // 1. Initial load (tribeLoading = true)
+  // 2. Refetching without data (tribeFetching = true AND no tribe data)
+  if (tribeLoading || (tribeFetching && !tribe)) {
     return (
       <div className="max-w-4xl mx-auto space-y-8">
         {/* Loading Header with Status */}
