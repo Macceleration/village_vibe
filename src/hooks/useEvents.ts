@@ -45,20 +45,13 @@ export interface EventFilters {
 }
 
 // Hook to get events for a specific tribe
-export function useTribeEvents(
-  tribeId: string,
-  filters: EventFilters = {},
-  options: { enabled?: boolean } = {}
-) {
+export function useTribeEvents(tribeId: string, filters: EventFilters = {}) {
   const { nostr } = useNostr();
   const { user } = useCurrentUser();
 
   return useQuery({
-    // Add timestamp to queryKey to force fresh query every time
-    queryKey: ['tribe-events', tribeId, filters, Date.now()],
-    enabled: options.enabled !== false, // Default to enabled unless explicitly disabled
-    staleTime: 0, // Always fetch fresh data
-    gcTime: 1000 * 60, // Keep in cache for 1 minute
+    queryKey: ['tribe-events', tribeId, filters],
+    staleTime: 60000, // Cache for 1 minute
     retry: 3, // Retry 3 times on failure
     retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 30000), // Exponential backoff
     queryFn: async (c) => {

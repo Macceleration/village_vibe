@@ -58,20 +58,17 @@ export function useTribe(tribeId: string) {
   const { nostr } = useNostr();
 
   return useQuery({
-    // Add timestamp to queryKey to force fresh query every time
-    queryKey: ['tribe', tribeId, Date.now()],
+    queryKey: ['tribe', tribeId],
     retry: 5, // Retry 5 times for maximum reliability
     retryDelay: (attemptIndex) => {
       // Very aggressive retry schedule: 250ms, 500ms, 1s, 2s, 4s
       return Math.min(250 * 2 ** attemptIndex, 10000);
     },
-    staleTime: 0, // Always fetch fresh data
-    gcTime: 1000 * 60, // Keep in cache for 1 minute
-    refetchOnMount: true, // Always refetch on mount
+    staleTime: 30000, // Cache for 30 seconds
+    gcTime: 5 * 60 * 1000, // Keep in cache for 5 minutes
+    refetchOnMount: 'always', // Always refetch on mount, even if stale
     refetchOnReconnect: true, // Refetch when reconnecting
-    refetchOnWindowFocus: false, // Don't refetch on window focus
     networkMode: 'always', // Don't pause queries when offline
-    throwOnError: false, // Don't throw errors, return them in error state
     queryFn: async (c) => {
       const signal = AbortSignal.any([c.signal, AbortSignal.timeout(15000)]); // Increased to 15s
 

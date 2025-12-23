@@ -23,29 +23,10 @@ interface TribeViewProps {
 
 export function TribeView({ tribeId }: TribeViewProps) {
   const { user } = useCurrentUser();
-  const { data: tribe, isLoading: tribeLoading, error: tribeError, failureCount, refetch: refetchTribe, isFetching: tribeFetching } = useTribe(tribeId);
+  const { data: tribe, isLoading: tribeLoading, error: tribeError, failureCount, refetch: refetchTribe } = useTribe(tribeId);
+  const { data: events, isLoading: eventsLoading, refetch: refetchEvents } = useTribeEvents(tribeId);
 
-  // Only fetch events after tribe query completes (success or failure)
-  // This prevents race condition where events query uses stale cache
-  const { data: events, isLoading: eventsLoading, refetch: refetchEvents, isFetching: eventsFetching } = useTribeEvents(
-    tribeId,
-    {},
-    { enabled: !tribeLoading } // Wait for tribe query to complete
-  );
-
-  console.log('🔄 Tribe query status:', {
-    tribeId,
-    isLoading: tribeLoading,
-    isFetching: tribeFetching,
-    hasData: !!tribe,
-    failureCount,
-    error: tribeError
-  });
-
-  // Show loading state if:
-  // 1. Initial load (tribeLoading = true)
-  // 2. Refetching without data (tribeFetching = true AND no tribe data)
-  if (tribeLoading || (tribeFetching && !tribe)) {
+  if (tribeLoading) {
     return (
       <div className="max-w-4xl mx-auto space-y-8">
         {/* Loading Header with Status */}
@@ -121,8 +102,7 @@ export function TribeView({ tribeId }: TribeViewProps) {
     );
   }
 
-  // Only show error state if query completed (not loading or fetching) and still no data
-  if ((tribeError || !tribe) && !tribeLoading && !tribeFetching) {
+  if (tribeError || (!tribe && !tribeLoading)) {
     return (
       <div className="max-w-2xl mx-auto">
         <Card className="border-dashed">
