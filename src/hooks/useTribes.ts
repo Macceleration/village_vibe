@@ -34,7 +34,9 @@ export function usePublicTribes() {
 
   return useQuery({
     queryKey: ['public-tribes'],
+    staleTime: 30000, // Cache for 30 seconds
     queryFn: async (c) => {
+      console.log('🔍 Querying public tribes...');
       const signal = AbortSignal.any([c.signal, AbortSignal.timeout(5000)]);
 
       const events = await nostr.query([
@@ -45,6 +47,7 @@ export function usePublicTribes() {
         }
       ], { signal });
 
+      console.log('📦 Found public tribes:', events.length);
       return events;
     },
   });
@@ -55,14 +58,15 @@ export function useTribe(tribeId: string) {
   const { nostr } = useNostr();
 
   return useQuery({
-    queryKey: ['tribe', tribeId],
+    // Add timestamp to queryKey to force fresh query every time
+    queryKey: ['tribe', tribeId, Date.now()],
     retry: 5, // Retry 5 times for maximum reliability
     retryDelay: (attemptIndex) => {
       // Very aggressive retry schedule: 250ms, 500ms, 1s, 2s, 4s
       return Math.min(250 * 2 ** attemptIndex, 10000);
     },
     staleTime: 0, // Always fetch fresh data
-    gcTime: 0, // Don't cache at all
+    gcTime: 1000 * 60, // Keep in cache for 1 minute
     refetchOnMount: true, // Always refetch on mount
     refetchOnReconnect: true, // Refetch when reconnecting
     refetchOnWindowFocus: false, // Don't refetch on window focus

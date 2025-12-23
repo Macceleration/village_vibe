@@ -54,10 +54,11 @@ export function useTribeEvents(
   const { user } = useCurrentUser();
 
   return useQuery({
-    queryKey: ['tribe-events', tribeId, filters],
+    // Add timestamp to queryKey to force fresh query every time
+    queryKey: ['tribe-events', tribeId, filters, Date.now()],
     enabled: options.enabled !== false, // Default to enabled unless explicitly disabled
     staleTime: 0, // Always fetch fresh data
-    gcTime: 0, // Don't cache at all
+    gcTime: 1000 * 60, // Keep in cache for 1 minute
     retry: 3, // Retry 3 times on failure
     retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 30000), // Exponential backoff
     queryFn: async (c) => {
