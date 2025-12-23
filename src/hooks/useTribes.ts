@@ -59,14 +59,14 @@ export function useTribe(tribeId: string) {
 
   return useQuery({
     queryKey: ['tribe', tribeId],
-    retry: 5, // Retry 5 times for maximum reliability
+    retry: 3, // Retry 3 times (reduced from 5 to fail faster)
     retryDelay: (attemptIndex) => {
-      // Very aggressive retry schedule: 250ms, 500ms, 1s, 2s, 4s
-      return Math.min(250 * 2 ** attemptIndex, 10000);
+      // Faster retry schedule: 500ms, 1s, 2s
+      return Math.min(500 * 2 ** attemptIndex, 5000);
     },
-    staleTime: 30000, // Cache for 30 seconds
+    staleTime: 0, // Data is immediately stale - forces refetch
     gcTime: 5 * 60 * 1000, // Keep in cache for 5 minutes
-    refetchOnMount: 'always', // Always refetch on mount, even if stale
+    refetchOnMount: true, // Refetch when stale
     refetchOnReconnect: true, // Refetch when reconnecting
     networkMode: 'always', // Don't pause queries when offline
     queryFn: async (c) => {
