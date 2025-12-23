@@ -34,9 +34,7 @@ export function usePublicTribes() {
 
   return useQuery({
     queryKey: ['public-tribes'],
-    staleTime: 30000, // Cache for 30 seconds
     queryFn: async (c) => {
-      console.log('🔍 Querying public tribes...');
       const signal = AbortSignal.any([c.signal, AbortSignal.timeout(5000)]);
 
       const events = await nostr.query([
@@ -47,7 +45,6 @@ export function usePublicTribes() {
         }
       ], { signal });
 
-      console.log('📦 Found public tribes:', events.length);
       return events;
     },
   });

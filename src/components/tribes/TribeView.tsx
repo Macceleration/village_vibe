@@ -1,5 +1,3 @@
-import { useEffect } from "react";
-import { useQueryClient } from "@tanstack/react-query";
 import { useTribe } from "@/hooks/useTribes";
 import { useTribeEvents } from "@/hooks/useEvents";
 import { useCurrentUser } from "@/hooks/useCurrentUser";
@@ -24,17 +22,17 @@ interface TribeViewProps {
 }
 
 export function TribeView({ tribeId }: TribeViewProps) {
-  const queryClient = useQueryClient();
   const { user } = useCurrentUser();
+  const { data: tribe, isLoading: tribeLoading, error: tribeError, failureCount, refetch: refetchTribe, isFetching: tribeFetching } = useTribe(tribeId);
+  const { data: events, isLoading: eventsLoading, refetch: refetchEvents, isFetching: eventsFetching } = useTribeEvents(tribeId);
 
-  // Reset queries when tribeId changes to clear any error states
-  useEffect(() => {
-    queryClient.resetQueries({ queryKey: ['tribe', tribeId], exact: true });
-    queryClient.resetQueries({ queryKey: ['tribe-events', tribeId] });
-  }, [tribeId, queryClient]);
-
-  const { data: tribe, isLoading: tribeLoading, error: tribeError, failureCount, refetch: refetchTribe } = useTribe(tribeId);
-  const { data: events, isLoading: eventsLoading, refetch: refetchEvents } = useTribeEvents(tribeId);
+  console.log('🔄 Tribe query status:', {
+    tribeId,
+    isLoading: tribeLoading,
+    hasData: !!tribe,
+    failureCount,
+    error: tribeError
+  });
 
   if (tribeLoading) {
     return (
