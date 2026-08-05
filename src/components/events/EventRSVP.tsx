@@ -47,7 +47,7 @@ export function EventRSVP({ event, userRSVP, eventId }: EventRSVPProps) {
 
       const tags = [
         ['d', dTag],
-        ['a', `31923:${eventId}`], // Reference to event
+        ['a', `${event.kind}:${eventId}`], // Reference to event using its actual kind
         ['e', event.id], // Reference to specific event revision
         ['p', event.pubkey], // Event author
         ['status', status],

@@ -196,31 +196,31 @@ export function useEventRSVPs(eventId: string) {
   return useQuery({
     queryKey: ['event-rsvps', eventId],
     queryFn: async (c) => {
-      const signal = AbortSignal.any([c.signal, AbortSignal.timeout(1500)]);
+      const signal = AbortSignal.any([c.signal, AbortSignal.timeout(8000)]);
 
       const [pubkey, dTag] = eventId.split(':');
       if (!pubkey || !dTag) return [];
 
-      // Query RSVPs for both enhanced and legacy events
-      const enhancedRSVPs = await nostr.query([
-        {
-          kinds: [31925], // Calendar Event RSVP (NIP-52)
-          '#a': [`36959:${pubkey}:${dTag}`],
-          limit: 200,
-        }
-      ], { signal });
+      // Query RSVPs for both enhanced (36959) and legacy (31923) event kinds
+      // in a single request using multiple filters to avoid relay rate limiting
+      const rsvps = await nostr.query(
+        [
+          {
+            kinds: [31925], // Calendar Event RSVP (NIP-52)
+            '#a': [
+              `36959:${pubkey}:${dTag}`,
+              `31923:${pubkey}:${dTag}`,
+            ],
+            limit: 200,
+          },
+        ],
+        { signal },
+      );
 
-      const legacyRSVPs = await nostr.query([
-        {
-          kinds: [31925], // Calendar Event RSVP (NIP-52)
-          '#a': [`31923:${pubkey}:${dTag}`],
-          limit: 200,
-        }
-      ], { signal });
-
-      const allRSVPs = [...enhancedRSVPs, ...legacyRSVPs];
-      return allRSVPs.filter(validateRSVPEvent);
+      return rsvps.filter(validateRSVPEvent);
     },
+
+    retry: 2,
   });
 }
 
@@ -258,38 +258,29 @@ export function useUserRSVP(eventId: string, userPubkey?: string) {
     queryFn: async (c) => {
       if (!userPubkey) return null;
 
-      const signal = AbortSignal.any([c.signal, AbortSignal.timeout(1500)]);
+      const signal = AbortSignal.any([c.signal, AbortSignal.timeout(8000)]);
 
       const [pubkey, dTag] = eventId.split(':');
       if (!pubkey || !dTag) return null;
 
-      // Try enhanced events first
-      let events = await nostr.query([
-        {
-          kinds: [31925],
-          authors: [userPubkey],
-          '#a': [`36959:${pubkey}:${dTag}`],
-          limit: 1,
-        }
-      ], { signal });
+      // Query both enhanced (36959) and legacy (31923) event kinds in one request
+      const events = await nostr.query(
+        [
+          {
+            kinds: [31925],
+            authors: [userPubkey],
+            '#a': [
+              `36959:${pubkey}:${dTag}`,
+              `31923:${pubkey}:${dTag}`,
+            ],
+            limit: 5,
+          },
+        ],
+        { signal },
+      );
 
-      let rsvp = events[0];
-      if (rsvp && validateRSVPEvent(rsvp)) {
-        return rsvp;
-      }
-
-      // Fallback to legacy events
-      events = await nostr.query([
-        {
-          kinds: [31925],
-          authors: [userPubkey],
-          '#a': [`31923:${pubkey}:${dTag}`],
-          limit: 1,
-        }
-      ], { signal });
-
-      rsvp = events[0];
-      return rsvp && validateRSVPEvent(rsvp) ? rsvp : null;
+      const rsvp = events.find(validateRSVPEvent);
+      return rsvp ?? null;
     },
     enabled: !!userPubkey,
   });

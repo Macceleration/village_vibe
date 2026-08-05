@@ -162,7 +162,7 @@ export function AttendeeCheckIn({ event, eventId }: AttendeeCheckInProps) {
 
     try {
       const tags = [
-        ['a', `31923:${eventId}`], // Reference to event
+        ['a', `${event.kind}:${eventId}`], // Reference to event using its actual kind
         ['e', event.id], // Reference to specific event revision
         ['p', event.pubkey], // Event host pubkey
         ['nonce', checkInCode.trim()], // 13-digit verification code
