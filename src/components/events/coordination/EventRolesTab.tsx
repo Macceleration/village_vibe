@@ -1,13 +1,10 @@
 import { useState } from "react";
 import type { NostrEvent } from "@nostrify/nostrify";
-import { useCurrentUser } from "@/hooks/useCurrentUser";
-import { useNostrPublish } from "@/hooks/useNostrPublish";
-import { useEventRoles, useCreateRole, useClaimRole, useRoleClaims } from "@/hooks/useEventCoordination";
+import { useEventCoordinationData, useCreateRole } from "@/hooks/useEventCoordination";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
+import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Plus, Users, Clock } from "lucide-react";
+import { Plus, Users } from "lucide-react";
 import { CreateRoleDialog } from "./CreateRoleDialog";
 import { RoleCard } from "./RoleCard";
 
@@ -17,8 +14,7 @@ interface EventRolesTabProps {
 }
 
 export function EventRolesTab({ event, canManage }: EventRolesTabProps) {
-  const { user } = useCurrentUser();
-  const { data: roles, isLoading } = useEventRoles(event.id);
+  const { data, isLoading } = useEventCoordinationData(event);
   const [showCreateDialog, setShowCreateDialog] = useState(false);
 
   if (isLoading) {
@@ -38,8 +34,11 @@ export function EventRolesTab({ event, canManage }: EventRolesTabProps) {
     );
   }
 
-  const openRoles = roles?.filter(r => r.status === 'open') || [];
-  const filledRoles = roles?.filter(r => r.status === 'filled') || [];
+  const roles = data?.roles ?? [];
+  const roleClaims = data?.roleClaims ?? [];
+
+  const openRoles = roles.filter(r => r.status === 'open');
+  const filledRoles = roles.filter(r => r.status === 'filled');
 
   return (
     <div className="space-y-6">
@@ -60,7 +59,7 @@ export function EventRolesTab({ event, canManage }: EventRolesTabProps) {
       </div>
 
       {/* Empty State */}
-      {!roles || roles.length === 0 ? (
+      {roles.length === 0 ? (
         <Card className="border-dashed">
           <CardContent className="py-12 text-center">
             <Users className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
@@ -90,6 +89,7 @@ export function EventRolesTab({ event, canManage }: EventRolesTabProps) {
                   role={role}
                   event={event}
                   canManage={canManage}
+                  claims={roleClaims.filter(c => c.roleId === role.id)}
                 />
               ))}
             </div>
@@ -105,6 +105,7 @@ export function EventRolesTab({ event, canManage }: EventRolesTabProps) {
                   role={role}
                   event={event}
                   canManage={canManage}
+                  claims={roleClaims.filter(c => c.roleId === role.id)}
                 />
               ))}
             </div>

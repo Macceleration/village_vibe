@@ -2,9 +2,9 @@ import { Link } from "react-router-dom";
 import type { NostrEvent } from "@nostrify/nostrify";
 import { useCurrentUser } from "@/hooks/useCurrentUser";
 import { useJoinTribe } from "@/hooks/useTribesActions";
-import { useTribeMemberCount, useTribeJoinRequests } from "@/hooks/useTribes";
 import { useNostr } from '@nostrify/react';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useQueryClient } from '@tanstack/react-query';
+import type { TribeRequestStatus } from "@/hooks/useTribes";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -13,9 +13,11 @@ import { Calendar, MapPin, Users, UserPlus, Loader2, Clock, X } from "lucide-rea
 
 interface TribeCardProps {
   tribe: NostrEvent;
+  /** Pre-computed from the batched useTribesCardStatuses query in MyTribes. */
+  requestStatus: TribeRequestStatus;
 }
 
-export function TribeCard({ tribe }: TribeCardProps) {
+export function TribeCard({ tribe, requestStatus }: TribeCardProps) {
   const { user } = useCurrentUser();
   const { nostr } = useNostr();
   const queryClient = useQueryClient();
@@ -23,7 +25,6 @@ export function TribeCard({ tribe }: TribeCardProps) {
 
   const dTag = tribe.tags.find(([name]) => name === 'd')?.[1] || '';
   const tribeId = `${tribe.pubkey}:${dTag}`;
-  const { data: memberCount } = useTribeMemberCount(tribeId);
 
   const nameTag = tribe.tags.find(([name]) => name === 'name')?.[1];
   const descriptionTag = tribe.tags.find(([name]) => name === 'description')?.[1];
@@ -32,33 +33,12 @@ export function TribeCard({ tribe }: TribeCardProps) {
 
   const tribeName = nameTag || dTag;
 
-  // Check for existing join requests from this user
-  const { data: userJoinRequests } = useTribeJoinRequests(tribeId, user?.pubkey);
-  const hasExistingRequest = userJoinRequests && userJoinRequests.length > 0;
-
-  // Check if user has been rejected
-  const { data: userRejections } = useQuery({
-    queryKey: ['user-rejections', tribeId, user?.pubkey],
-    queryFn: async (c) => {
-      if (!user?.pubkey) return [];
-
-      const signal = AbortSignal.any([c.signal, AbortSignal.timeout(1500)]);
-
-      const rejections = await nostr.query([
-        {
-          kinds: [9022], // Join rejection
-          '#h': [tribeId],
-          '#p': [user.pubkey],
-          limit: 10,
-        }
-      ], { signal });
-
-      return rejections;
-    },
-    enabled: !!user?.pubkey && !!tribeId,
-  });
-
-  const hasBeenRejected = userRejections && userRejections.length > 0;
+  // Compute member count locally — no extra query needed
+  const memberCount = new Set(
+    tribe.tags
+      .filter(([name, pubkey]) => name === 'p' && Boolean(pubkey))
+      .map(([, pubkey]) => pubkey),
+  ).size;
 
   // Check if tribe is public/private and open/closed
   const isPublic = tribe.tags.some(([name]) => name === 'public');
@@ -68,17 +48,20 @@ export function TribeCard({ tribe }: TribeCardProps) {
   const isMember = user && tribe.tags.some(([name, pubkey]) => name === 'p' && pubkey === user.pubkey);
   const isCreator = user?.pubkey === tribe.pubkey;
 
+  const hasExistingRequest = requestStatus === 'pending';
+  const hasBeenRejected = requestStatus === 'rejected';
+
   // Prefetch tribe data on hover for instant loading
   const prefetchTribe = () => {
     queryClient.prefetchQuery({
       queryKey: ['tribe', tribeId],
       queryFn: async () => {
-        const [pubkey, dTag] = tribeId.split(':');
+        const [pubkey, d] = tribeId.split(':');
         const events = await nostr.query([
           {
             kinds: [34550],
             authors: [pubkey],
-            '#d': [dTag],
+            '#d': [d],
             limit: 1,
           }
         ], { signal: AbortSignal.timeout(10000) });
@@ -159,7 +142,7 @@ export function TribeCard({ tribe }: TribeCardProps) {
           <div className="flex items-center gap-4">
             <div className="flex items-center gap-1">
               <Users className="h-3 w-3" />
-              <span>{memberCount || 0} {(memberCount || 0) === 1 ? 'member' : 'members'}</span>
+              <span>{memberCount} {memberCount === 1 ? 'member' : 'members'}</span>
             </div>
             {locationTag && (
               <div className="flex items-center gap-1">

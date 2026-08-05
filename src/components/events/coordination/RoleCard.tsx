@@ -1,6 +1,6 @@
 import type { NostrEvent } from "@nostrify/nostrify";
 import { useCurrentUser } from "@/hooks/useCurrentUser";
-import { useClaimRole, useRoleClaims, type EventRole } from "@/hooks/useEventCoordination";
+import { useClaimRole, type EventRole, type RoleClaim } from "@/hooks/useEventCoordination";
 import { useNostrPublish } from "@/hooks/useNostrPublish";
 import { useAuthor } from "@/hooks/useAuthor";
 import { Card, CardContent } from "@/components/ui/card";
@@ -15,35 +15,23 @@ interface RoleCardProps {
   role: EventRole;
   event: NostrEvent;
   canManage: boolean;
+  /** Active + withdrawn claims for this role, passed from the parent tab (no extra query). */
+  claims: RoleClaim[];
 }
 
-export function RoleCard({ role, event, canManage }: RoleCardProps) {
+export function RoleCard({ role, event, canManage, claims }: RoleCardProps) {
   const { user } = useCurrentUser();
-  const { data: claims, isLoading: claimsLoading } = useRoleClaims(role.id, event.id);
   const { mutate: claimRole, isPending: isClaiming } = useClaimRole();
   const { mutateAsync: publish } = useNostrPublish();
   const { toast } = useToast();
 
-  console.log('🎴 RoleCard render:', {
-    roleId: role.id,
-    roleTitle: role.title,
-    claimsData: claims,
-    claimsLoading,
-  });
-
-  const activeClaims = claims?.filter(c => c.status === 'active') || [];
+  const activeClaims = claims.filter(c => c.status === 'active');
   const userClaim = activeClaims.find(c => c.claimedBy === user?.pubkey);
-  const filledCount = role.filled || activeClaims.length; // Use role.filled from aggregated query or count claims
+  // Use role.filled (computed by batched query) as primary source; fall back to local count
+  const filledCount = role.filled || activeClaims.length;
   const spotsLeft = role.slots - filledCount;
 
-  console.log('📊 Role stats:', {
-    roleId: role.id,
-    slots: role.slots,
-    filledFromRole: role.filled,
-    claimsLength: activeClaims.length,
-    finalFilledCount: filledCount,
-    spotsLeft,
-  });
+  const dTag = event.tags.find(([n]) => n === 'd')?.[1] ?? '';
 
   const handleClaim = async () => {
     if (!user) {
@@ -55,32 +43,17 @@ export function RoleCard({ role, event, canManage }: RoleCardProps) {
       return;
     }
 
-    console.log('🎯 Claiming role:', {
-      roleId: role.id,
-      roleTitle: role.title,
-      eventId: event.id,
-      userPubkey: user.pubkey,
-    });
-
     claimRole({
       roleId: role.id,
       roleEventId: event.id,
       eventId: event.id,
+      eventKind: event.kind,
+      eventAuthor: event.pubkey,
+      eventDTag: dTag,
     }, {
       onSuccess: async (result) => {
-        console.log('✅ Claim data created:', {
-          claimId: result.claimId,
-          kind: result.eventData.kind,
-          tags: result.eventData.tags,
-        });
-
         try {
-          console.log('📤 Publishing claim to Nostr...');
-          const published = await publish(result.eventData);
-          console.log('✅ Claim published successfully:', {
-            id: published.id,
-            claimId: result.claimId,
-          });
+          await publish(result.eventData);
           toast({
             title: "Success",
             description: "You've claimed this role!",

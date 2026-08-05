@@ -6,7 +6,7 @@ import { createHead, UnheadProvider } from '@unhead/react/client';
 import { InferSeoMetaPlugin } from '@unhead/addons';
 import { Suspense } from 'react';
 import NostrProvider from '@/components/NostrProvider';
-import { GlobalLoadingOverlay } from '@/components/GlobalLoadingOverlay';
+import { BackgroundSyncIndicator } from '@/components/BackgroundSyncIndicator';
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { NostrLoginProvider } from '@nostrify/react/login';
@@ -55,7 +55,7 @@ export function App() {
               <NWCProvider>
                 <TooltipProvider>
                   <Toaster />
-                  <GlobalLoadingOverlay />
+                  <BackgroundSyncIndicator />
                   <Suspense>
                     <AppRouter />
                   </Suspense>

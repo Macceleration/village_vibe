@@ -14,7 +14,7 @@ interface EventActionsTabProps {
 }
 
 export function EventActionsTab({ event, canManage }: EventActionsTabProps) {
-  const { data: actions, isLoading } = useEventActions(event.id);
+  const { data: actions, isLoading } = useEventActions(event);
   const [showCreateDialog, setShowCreateDialog] = useState(false);
 
   if (isLoading) {

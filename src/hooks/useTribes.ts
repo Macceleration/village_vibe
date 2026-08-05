@@ -2,6 +2,13 @@ import { useNostr } from '@nostrify/react';
 import { useQuery } from '@tanstack/react-query';
 import type { NostrEvent } from '@nostrify/nostrify';
 
+export type TribeRequestStatus = 'none' | 'pending' | 'rejected';
+
+export interface TribeCardStatus {
+  tribeId: string;
+  requestStatus: TribeRequestStatus;
+}
+
 // Hook to get tribes (communities) that the user belongs to
 export function useMyTribes(pubkey?: string) {
   const { nostr } = useNostr();
@@ -260,6 +267,64 @@ export function useTribeName(tribeTag?: string) {
 export function extractTribeName(event: NostrEvent): string {
   const tribeTag = event.tags.find(([name]) => name === 'tribe')?.[1];
   return tribeTag || 'Unknown Tribe';
+}
+
+/**
+ * Batch-query join-request and rejection status for multiple tribe IDs.
+ * Returns a Map<tribeId, TribeRequestStatus> so each TribeCard can read
+ * its status without firing any individual queries of its own.
+ */
+export function useTribesCardStatuses(tribeIds: string[], userPubkey?: string) {
+  const { nostr } = useNostr();
+
+  return useQuery({
+    queryKey: ['tribes-card-statuses', tribeIds.slice().sort().join(','), userPubkey],
+    queryFn: async (c) => {
+      const result = new Map<string, TribeRequestStatus>();
+      tribeIds.forEach(id => result.set(id, 'none'));
+
+      if (!userPubkey || tribeIds.length === 0) return result;
+
+      const signal = AbortSignal.any([c.signal, AbortSignal.timeout(8000)]);
+
+      // One request for both join requests (9021) and rejections (9022)
+      const events = await nostr.query(
+        [
+          {
+            kinds: [9021], // join requests authored by user
+            authors: [userPubkey],
+            '#h': tribeIds,
+            limit: 200,
+          },
+          {
+            kinds: [9022], // rejections targeting user
+            '#p': [userPubkey],
+            '#h': tribeIds,
+            limit: 200,
+          },
+        ],
+        { signal },
+      );
+
+      const requests = events.filter(e => e.kind === 9021);
+      const rejections = events.filter(e => e.kind === 9022);
+
+      // Mark rejections first (highest priority)
+      rejections.forEach(e => {
+        const h = e.tags.find(([n]) => n === 'h')?.[1];
+        if (h && result.has(h)) result.set(h, 'rejected');
+      });
+
+      // Mark pending only if not already rejected
+      requests.forEach(e => {
+        const h = e.tags.find(([n]) => n === 'h')?.[1];
+        if (h && result.get(h) === 'none') result.set(h, 'pending');
+      });
+
+      return result;
+    },
+    enabled: tribeIds.length > 0,
+  });
 }
 
 // Validate tribe event structure

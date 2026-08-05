@@ -1,5 +1,6 @@
 import { useNostr } from '@nostrify/react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useMemo } from 'react';
 import type { NostrEvent } from '@nostrify/nostrify';
 import { useCurrentUser } from './useCurrentUser';
 
@@ -47,6 +48,16 @@ export const COORDINATION_KINDS = {
   ALERT_RULE: 38408,    // Alert rule definition
   ALERT_TRIGGER: 38409, // Alert trigger notification
 } as const;
+
+const ALL_COORDINATION_KINDS = [
+  COORDINATION_KINDS.ROLE,
+  COORDINATION_KINDS.ROLE_CLAIM,
+  COORDINATION_KINDS.ITEM,
+  COORDINATION_KINDS.ITEM_CLAIM,
+  COORDINATION_KINDS.ACTION,
+  COORDINATION_KINDS.ACTION_UPDATE,
+  COORDINATION_KINDS.OUTCOME,
+];
 
 // ============================================================================
 // ROLES
@@ -124,74 +135,8 @@ export function useCreateRole() {
     },
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({
-        queryKey: ['event-roles', variables.eventId],
+        queryKey: ['event-coordination', variables.eventId],
       });
-    },
-  });
-}
-
-// Get all roles for an event with claim counts
-export function useEventRoles(eventId: string) {
-  const { nostr } = useNostr();
-
-  return useQuery({
-    queryKey: ['event-roles', eventId],
-    queryFn: async (c) => {
-      const signal = AbortSignal.any([c.signal, AbortSignal.timeout(2000)]);
-
-      console.log('🔍 Querying roles for event:', eventId);
-
-      // Get all roles
-      const roleEvents = await nostr.query([
-        {
-          kinds: [COORDINATION_KINDS.ROLE],
-          '#e': [eventId],
-          limit: 100,
-        }
-      ], { signal });
-
-      console.log('📦 Found roles:', roleEvents.length);
-
-      // Get all role claims for this event
-      const claimEvents = await nostr.query([
-        {
-          kinds: [COORDINATION_KINDS.ROLE_CLAIM],
-          '#e': [eventId],
-          limit: 200,
-        }
-      ], { signal });
-
-      console.log('📦 Found role claims:', claimEvents.length);
-
-      const claims = claimEvents.map(parseRoleClaimEvent).filter((c): c is RoleClaim => c !== null);
-      const activeClaims = claims.filter(c => c.status === 'active');
-
-      console.log('✅ Active claims:', activeClaims.length);
-
-      // Count claims per role
-      const claimCounts = new Map<string, number>();
-      activeClaims.forEach(claim => {
-        const count = claimCounts.get(claim.roleId) || 0;
-        claimCounts.set(claim.roleId, count + 1);
-      });
-
-      // Parse roles and add claim counts
-      const roles = roleEvents.map(event => {
-        const role = parseRoleEvent(event);
-        if (!role) return null;
-
-        const filled = claimCounts.get(role.id) || 0;
-        return { ...role, filled };
-      }).filter((r): r is EventRole => r !== null);
-
-      console.log('✅ Roles with claim counts:', roles.map(r => ({
-        id: r.id,
-        title: r.title,
-        filled: r.filled,
-        slots: r.slots
-      })));
-
-      return roles;
     },
   });
 }
@@ -205,12 +150,16 @@ export function useClaimRole() {
       roleId: string;
       roleEventId: string;
       eventId: string;
+      eventKind: number;
+      eventAuthor: string;
+      eventDTag: string;
       notes?: string;
     }) => {
       const claimId = `claim-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
 
       const tags: string[][] = [
         ['d', claimId],
+        ['a', `${data.eventKind}:${data.eventAuthor}:${data.eventDTag}`],
         ['e', data.roleEventId, '', 'reply'],
         ['e', data.eventId, '', 'root'],
         ['role', data.roleId],
@@ -231,50 +180,8 @@ export function useClaimRole() {
     },
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({
-        queryKey: ['event-roles', variables.eventId],
+        queryKey: ['event-coordination', variables.eventId],
       });
-      queryClient.invalidateQueries({
-        queryKey: ['role-claims', variables.roleId],
-      });
-    },
-  });
-}
-
-// Get claims for a role
-export function useRoleClaims(roleId: string, eventId: string) {
-  const { nostr } = useNostr();
-
-  return useQuery({
-    queryKey: ['role-claims', roleId, eventId],
-    queryFn: async (c) => {
-      const signal = AbortSignal.any([c.signal, AbortSignal.timeout(2000)]);
-
-      console.log('🔍 Querying role claims for:', { roleId, eventId });
-
-      // Query all claims for this event, then filter client-side
-      // (Relay doesn't index custom tags like 'role')
-      const events = await nostr.query([
-        {
-          kinds: [COORDINATION_KINDS.ROLE_CLAIM],
-          '#e': [eventId], // Query by event ID
-          limit: 100,
-        }
-      ], { signal });
-
-      console.log('📦 Total role claims for event:', events.length);
-
-      // Filter for claims matching this specific role
-      const roleClaims = events.filter(event => {
-        const claimRoleId = event.tags.find(([n]) => n === 'role')?.[1];
-        return claimRoleId === roleId;
-      });
-
-      console.log('📦 Claims for this role:', roleClaims.length);
-
-      const parsed = roleClaims.map(parseRoleClaimEvent).filter((c): c is RoleClaim => c !== null);
-      console.log('✅ Valid claims:', parsed);
-
-      return parsed;
     },
   });
 }
@@ -353,74 +260,8 @@ export function useCreateItem() {
     },
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({
-        queryKey: ['event-items', variables.eventId],
+        queryKey: ['event-coordination', variables.eventId],
       });
-    },
-  });
-}
-
-// Get all items for an event with claim counts
-export function useEventItems(eventId: string) {
-  const { nostr } = useNostr();
-
-  return useQuery({
-    queryKey: ['event-items', eventId],
-    queryFn: async (c) => {
-      const signal = AbortSignal.any([c.signal, AbortSignal.timeout(2000)]);
-
-      console.log('🔍 Querying items for event:', eventId);
-
-      // Get all items
-      const itemEvents = await nostr.query([
-        {
-          kinds: [COORDINATION_KINDS.ITEM],
-          '#e': [eventId],
-          limit: 100,
-        }
-      ], { signal });
-
-      console.log('📦 Found items:', itemEvents.length);
-
-      // Get all item claims for this event
-      const claimEvents = await nostr.query([
-        {
-          kinds: [COORDINATION_KINDS.ITEM_CLAIM],
-          '#e': [eventId],
-          limit: 200,
-        }
-      ], { signal });
-
-      console.log('📦 Found item claims:', claimEvents.length);
-
-      const claims = claimEvents.map(parseItemClaimEvent).filter((c): c is ItemClaim => c !== null);
-      const activeClaims = claims.filter(c => c.status === 'active');
-
-      console.log('✅ Active item claims:', activeClaims.length);
-
-      // Count claimed quantities per item
-      const claimQuantities = new Map<string, number>();
-      activeClaims.forEach(claim => {
-        const qty = claimQuantities.get(claim.itemId) || 0;
-        claimQuantities.set(claim.itemId, qty + claim.quantity);
-      });
-
-      // Parse items and add claim counts
-      const items = itemEvents.map(event => {
-        const item = parseItemEvent(event);
-        if (!item) return null;
-
-        const claimed = claimQuantities.get(item.id) || 0;
-        return { ...item, claimed };
-      }).filter((i): i is EventItem => i !== null);
-
-      console.log('✅ Items with claim counts:', items.map(i => ({
-        id: i.id,
-        title: i.title,
-        claimed: i.claimed,
-        quantity: i.quantity
-      })));
-
-      return items;
     },
   });
 }
@@ -434,6 +275,9 @@ export function useClaimItem() {
       itemId: string;
       itemEventId: string;
       eventId: string;
+      eventKind: number;
+      eventAuthor: string;
+      eventDTag: string;
       quantity: number;
       notes?: string;
     }) => {
@@ -441,6 +285,7 @@ export function useClaimItem() {
 
       const tags: string[][] = [
         ['d', claimId],
+        ['a', `${data.eventKind}:${data.eventAuthor}:${data.eventDTag}`],
         ['e', data.itemEventId, '', 'reply'],
         ['e', data.eventId, '', 'root'],
         ['item', data.itemId],
@@ -462,47 +307,8 @@ export function useClaimItem() {
     },
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({
-        queryKey: ['event-items', variables.eventId],
+        queryKey: ['event-coordination', variables.eventId],
       });
-      queryClient.invalidateQueries({
-        queryKey: ['item-claims', variables.itemId],
-      });
-    },
-  });
-}
-
-// Get claims for an item
-export function useItemClaims(itemId: string, eventId: string) {
-  const { nostr } = useNostr();
-
-  return useQuery({
-    queryKey: ['item-claims', itemId, eventId],
-    queryFn: async (c) => {
-      const signal = AbortSignal.any([c.signal, AbortSignal.timeout(2000)]);
-
-      console.log('🔍 Querying item claims for:', { itemId, eventId });
-
-      // Query all claims for this event, then filter client-side
-      // (Relay doesn't index custom tags like 'item')
-      const events = await nostr.query([
-        {
-          kinds: [COORDINATION_KINDS.ITEM_CLAIM],
-          '#e': [eventId], // Query by event ID
-          limit: 100,
-        }
-      ], { signal });
-
-      console.log('📦 Total item claims for event:', events.length);
-
-      // Filter for claims matching this specific item
-      const itemClaims = events.filter(event => {
-        const claimItemId = event.tags.find(([n]) => n === 'item')?.[1];
-        return claimItemId === itemId;
-      });
-
-      console.log('📦 Claims for this item:', itemClaims.length);
-
-      return itemClaims.map(parseItemClaimEvent).filter((c): c is ItemClaim => c !== null);
     },
   });
 }
@@ -585,30 +391,8 @@ export function useCreateAction() {
     },
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({
-        queryKey: ['event-actions', variables.eventId],
+        queryKey: ['event-coordination', variables.eventId],
       });
-    },
-  });
-}
-
-// Get all actions for an event
-export function useEventActions(eventId: string) {
-  const { nostr } = useNostr();
-
-  return useQuery({
-    queryKey: ['event-actions', eventId],
-    queryFn: async (c) => {
-      const signal = AbortSignal.any([c.signal, AbortSignal.timeout(2000)]);
-
-      const events = await nostr.query([
-        {
-          kinds: [COORDINATION_KINDS.ACTION],
-          '#e': [eventId],
-          limit: 100,
-        }
-      ], { signal });
-
-      return events.map(parseActionEvent).filter((a): a is EventAction => a !== null);
     },
   });
 }
@@ -622,6 +406,9 @@ export function useUpdateAction() {
       actionId: string;
       actionEventId: string;
       eventId: string;
+      eventKind: number;
+      eventAuthor: string;
+      eventDTag: string;
       status: ActionStatus;
       notes?: string;
     }) => {
@@ -629,6 +416,7 @@ export function useUpdateAction() {
 
       const tags: string[][] = [
         ['d', updateId],
+        ['a', `${data.eventKind}:${data.eventAuthor}:${data.eventDTag}`],
         ['e', data.actionEventId, '', 'reply'],
         ['e', data.eventId, '', 'root'],
         ['action', data.actionId],
@@ -649,10 +437,7 @@ export function useUpdateAction() {
     },
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({
-        queryKey: ['event-actions', variables.eventId],
-      });
-      queryClient.invalidateQueries({
-        queryKey: ['action-updates', variables.actionId],
+        queryKey: ['event-coordination', variables.eventId],
       });
     },
   });
@@ -721,30 +506,128 @@ export function useCreateOutcome() {
     },
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({
-        queryKey: ['event-outcomes', variables.eventId],
+        queryKey: ['event-coordination', variables.eventId],
       });
     },
   });
 }
 
-// Get all outcomes for an event
-export function useEventOutcomes(eventId: string) {
+// ============================================================================
+// BATCHED DATA FETCH
+// ============================================================================
+
+export interface EventCoordinationData {
+  roles: EventRole[];
+  roleClaims: RoleClaim[];
+  items: EventItem[];
+  itemClaims: ItemClaim[];
+  actions: EventAction[];
+  actionUpdates: ActionUpdate[];
+  outcomes: EventOutcome[];
+}
+
+/**
+ * Fetch ALL coordination data for an event in a single relay request.
+ *
+ * Primary filter: stable `a` tag coordinate (survives event updates).
+ * Fallback filter: `e` tag (for records written before the `a` tag was used).
+ *
+ * Returns raw parsed collections; callers build derived views from this data.
+ */
+export function useEventCoordinationData(event: NostrEvent): ReturnType<typeof useQuery<EventCoordinationData>> {
   const { nostr } = useNostr();
 
+  const dTag = event.tags.find(([n]) => n === 'd')?.[1] ?? '';
+  const eventAddress = `${event.kind}:${event.pubkey}:${dTag}`;
+
   return useQuery({
-    queryKey: ['event-outcomes', eventId],
+    queryKey: ['event-coordination', event.id, eventAddress],
     queryFn: async (c) => {
-      const signal = AbortSignal.any([c.signal, AbortSignal.timeout(2000)]);
+      const signal = AbortSignal.any([c.signal, AbortSignal.timeout(8000)]);
 
-      const events = await nostr.query([
-        {
-          kinds: [COORDINATION_KINDS.OUTCOME],
-          '#e': [eventId],
-          limit: 100,
+      const raw = await nostr.query(
+        [
+          // Primary: stable addressable coordinate (works across revisions)
+          {
+            kinds: ALL_COORDINATION_KINDS,
+            '#a': [eventAddress],
+            limit: 500,
+          },
+          // Fallback: legacy records that only carried an `e` tag
+          {
+            kinds: ALL_COORDINATION_KINDS,
+            '#e': [event.id],
+            limit: 500,
+          },
+        ],
+        { signal },
+      );
+
+      // Deduplicate by event id
+      const seen = new Set<string>();
+      const events = raw.filter(e => {
+        if (seen.has(e.id)) return false;
+        seen.add(e.id);
+        return true;
+      });
+
+      const roleEvents     = events.filter(e => e.kind === COORDINATION_KINDS.ROLE);
+      const roleClaimEvents = events.filter(e => e.kind === COORDINATION_KINDS.ROLE_CLAIM);
+      const itemEvents     = events.filter(e => e.kind === COORDINATION_KINDS.ITEM);
+      const itemClaimEvents = events.filter(e => e.kind === COORDINATION_KINDS.ITEM_CLAIM);
+      const actionEvents   = events.filter(e => e.kind === COORDINATION_KINDS.ACTION);
+      const actionUpdateEvents = events.filter(e => e.kind === COORDINATION_KINDS.ACTION_UPDATE);
+      const outcomeEvents  = events.filter(e => e.kind === COORDINATION_KINDS.OUTCOME);
+
+      const roleClaims  = roleClaimEvents.map(parseRoleClaimEvent).filter((c): c is RoleClaim => c !== null);
+      const itemClaims  = itemClaimEvents.map(parseItemClaimEvent).filter((c): c is ItemClaim => c !== null);
+      const actionUpdates = actionUpdateEvents.map(parseActionUpdateEvent).filter((u): u is ActionUpdate => u !== null);
+
+      // Count active role claims per role
+      const roleFilled = new Map<string, number>();
+      roleClaims.filter(c => c.status === 'active').forEach(c => {
+        roleFilled.set(c.roleId, (roleFilled.get(c.roleId) ?? 0) + 1);
+      });
+
+      // Count active item claim quantities per item
+      const itemClaimed = new Map<string, number>();
+      itemClaims.filter(c => c.status === 'active').forEach(c => {
+        itemClaimed.set(c.itemId, (itemClaimed.get(c.itemId) ?? 0) + c.quantity);
+      });
+
+      // Apply latest action update status to each action
+      // Sort updates newest-first so the first match wins
+      const sortedUpdates = [...actionUpdates].sort((a, b) => b.updatedAt - a.updatedAt);
+      const latestActionStatus = new Map<string, ActionStatus>();
+      sortedUpdates.forEach(u => {
+        if (!latestActionStatus.has(u.actionId)) {
+          latestActionStatus.set(u.actionId, u.status);
         }
-      ], { signal });
+      });
 
-      return events.map(parseOutcomeEvent).filter((o): o is EventOutcome => o !== null);
+      const roles = roleEvents
+        .map(e => parseRoleEvent(e))
+        .filter((r): r is EventRole => r !== null)
+        .map(r => ({ ...r, filled: roleFilled.get(r.id) ?? 0 }));
+
+      const items = itemEvents
+        .map(e => parseItemEvent(e))
+        .filter((i): i is EventItem => i !== null)
+        .map(i => ({ ...i, claimed: itemClaimed.get(i.id) ?? 0 }));
+
+      const actions = actionEvents
+        .map(e => parseActionEvent(e))
+        .filter((a): a is EventAction => a !== null)
+        .map(a => ({
+          ...a,
+          status: latestActionStatus.get(a.id) ?? a.status,
+        }));
+
+      const outcomes = outcomeEvents
+        .map(e => parseOutcomeEvent(e))
+        .filter((o): o is EventOutcome => o !== null);
+
+      return { roles, roleClaims, items, itemClaims, actions, actionUpdates, outcomes };
     },
   });
 }
@@ -781,61 +664,83 @@ export interface EventCoordinationSummary {
   };
 }
 
-// Get complete coordination summary for an event
-export function useEventCoordinationSummary(eventId: string) {
-  const rolesQuery = useEventRoles(eventId);
-  const itemsQuery = useEventItems(eventId);
-  const actionsQuery = useEventActions(eventId);
-  const outcomesQuery = useEventOutcomes(eventId);
+/** Pure function — safe to call inside useMemo */
+export function buildCoordinationSummary(
+  eventId: string,
+  data: EventCoordinationData,
+): EventCoordinationSummary {
+  const { roles, items, actions, outcomes } = data;
 
-  return useQuery({
-    queryKey: ['event-coordination-summary', eventId],
-    queryFn: () => {
-      const roles = rolesQuery.data || [];
-      const items = itemsQuery.data || [];
-      const actions = actionsQuery.data || [];
-      const outcomes = outcomesQuery.data || [];
-
-      // Calculate total filled slots across all roles
-      const totalFilledSlots = roles.reduce((sum, role) => sum + role.filled, 0);
-      const totalSlots = roles.reduce((sum, role) => sum + role.slots, 0);
-
-      // Calculate total claimed items
-      const totalClaimedQty = items.reduce((sum, item) => sum + item.claimed, 0);
-      const totalItemQty = items.reduce((sum, item) => sum + item.quantity, 0);
-
-      const summary: EventCoordinationSummary = {
-        eventId,
-        roles: {
-          total: roles.length,
-          open: roles.filter(r => r.filled < r.slots).length, // Roles with available spots
-          filled: roles.filter(r => r.filled >= r.slots).length, // Roles that are full
-          items: roles,
-        },
-        items: {
-          total: items.length,
-          needed: items.filter(i => i.claimed < i.quantity).length, // Items still needed
-          claimed: items.filter(i => i.claimed >= i.quantity).length, // Items fully claimed
-          items,
-        },
-        actions: {
-          total: actions.length,
-          pending: actions.filter(a => a.status === 'pending').length,
-          inProgress: actions.filter(a => a.status === 'in-progress').length,
-          done: actions.filter(a => a.status === 'done').length,
-          blocked: actions.filter(a => a.status === 'blocked').length,
-          items: actions,
-        },
-        outcomes: {
-          total: outcomes.length,
-          items: outcomes,
-        },
-      };
-
-      return summary;
+  return {
+    eventId,
+    roles: {
+      total: roles.length,
+      open: roles.filter(r => r.filled < r.slots).length,
+      filled: roles.filter(r => r.filled >= r.slots).length,
+      items: roles,
     },
-    enabled: rolesQuery.isSuccess && itemsQuery.isSuccess && actionsQuery.isSuccess && outcomesQuery.isSuccess,
-  });
+    items: {
+      total: items.length,
+      needed: items.filter(i => i.claimed < i.quantity).length,
+      claimed: items.filter(i => i.claimed >= i.quantity).length,
+      items,
+    },
+    actions: {
+      total: actions.length,
+      pending: actions.filter(a => a.status === 'pending').length,
+      inProgress: actions.filter(a => a.status === 'in-progress').length,
+      done: actions.filter(a => a.status === 'done').length,
+      blocked: actions.filter(a => a.status === 'blocked').length,
+      items: actions,
+    },
+    outcomes: {
+      total: outcomes.length,
+      items: outcomes,
+    },
+  };
+}
+
+/**
+ * Convenience hook that returns the coordination data AND a memoized summary.
+ * Replaces the old useEventCoordinationSummary + four separate hooks pattern.
+ */
+export function useEventCoordinationSummary(event: NostrEvent) {
+  const query = useEventCoordinationData(event);
+
+  const summary = useMemo(
+    () => (query.data ? buildCoordinationSummary(event.id, query.data) : undefined),
+    [event.id, query.data],
+  );
+
+  return { ...query, summary };
+}
+
+// ============================================================================
+// LEGACY SHIM HOOKS (thin wrappers over the batched query for tab components)
+// ============================================================================
+
+/** Used by EventRolesTab */
+export function useEventRoles(event: NostrEvent) {
+  const query = useEventCoordinationData(event);
+  return { ...query, data: query.data?.roles };
+}
+
+/** Used by EventItemsTab */
+export function useEventItems(event: NostrEvent) {
+  const query = useEventCoordinationData(event);
+  return { ...query, data: query.data?.items };
+}
+
+/** Used by EventActionsTab */
+export function useEventActions(event: NostrEvent) {
+  const query = useEventCoordinationData(event);
+  return { ...query, data: query.data?.actions };
+}
+
+/** Used by EventOutcomesTab */
+export function useEventOutcomes(event: NostrEvent) {
+  const query = useEventCoordinationData(event);
+  return { ...query, data: query.data?.outcomes };
 }
 
 // ============================================================================
@@ -857,10 +762,14 @@ function parseRoleEvent(event: NostrEvent): EventRole | null {
     title,
     description: event.content,
     slots: parseInt(slots),
-    filled: 0, // Will be calculated from claims
+    filled: 0, // Will be merged by the batched hook
     status: status || 'open',
-    timeStart: event.tags.find(([n]) => n === 'time_start')?.[1] ? parseInt(event.tags.find(([n]) => n === 'time_start')![1]) : undefined,
-    timeEnd: event.tags.find(([n]) => n === 'time_end')?.[1] ? parseInt(event.tags.find(([n]) => n === 'time_end')![1]) : undefined,
+    timeStart: event.tags.find(([n]) => n === 'time_start')?.[1]
+      ? parseInt(event.tags.find(([n]) => n === 'time_start')![1])
+      : undefined,
+    timeEnd: event.tags.find(([n]) => n === 'time_end')?.[1]
+      ? parseInt(event.tags.find(([n]) => n === 'time_end')![1])
+      : undefined,
     requirements: event.tags.find(([n]) => n === 'requirements')?.[1],
     externalRef: event.tags.find(([n]) => n === 'external_ref')?.[1],
     createdAt: event.created_at,
@@ -902,7 +811,7 @@ function parseItemEvent(event: NostrEvent): EventItem | null {
     title,
     description: event.content,
     quantity: parseInt(quantity),
-    claimed: 0, // Will be calculated from claims
+    claimed: 0, // Will be merged by the batched hook
     status: status || 'needed',
     category: event.tags.find(([n]) => n === 'category')?.[1],
     unit: event.tags.find(([n]) => n === 'unit')?.[1],
@@ -948,12 +857,33 @@ function parseActionEvent(event: NostrEvent): EventAction | null {
     description: event.content,
     status: status || 'pending',
     assignedTo: event.tags.find(([n, , , marker]) => n === 'p' && marker === 'assigned')?.[1],
-    dueDate: event.tags.find(([n]) => n === 'due_date')?.[1] ? parseInt(event.tags.find(([n]) => n === 'due_date')![1]) : undefined,
+    dueDate: event.tags.find(([n]) => n === 'due_date')?.[1]
+      ? parseInt(event.tags.find(([n]) => n === 'due_date')![1])
+      : undefined,
     priority: event.tags.find(([n]) => n === 'priority')?.[1] as 'low' | 'medium' | 'high' | 'urgent' | undefined,
     dependencies: event.tags.filter(([n]) => n === 'depends').map(([, v]) => v),
     externalRef: event.tags.find(([n]) => n === 'external_ref')?.[1],
     createdAt: event.created_at,
     createdBy: event.pubkey,
+  };
+}
+
+function parseActionUpdateEvent(event: NostrEvent): ActionUpdate | null {
+  const dTag = event.tags.find(([n]) => n === 'd')?.[1];
+  const actionId = event.tags.find(([n]) => n === 'action')?.[1];
+  const eventId = event.tags.find(([n, , , marker]) => n === 'e' && marker === 'root')?.[1];
+  const status = event.tags.find(([n]) => n === 'status')?.[1] as ActionStatus;
+
+  if (!dTag || !actionId || !eventId || !status) return null;
+
+  return {
+    id: dTag,
+    actionId,
+    eventId,
+    status,
+    updatedBy: event.pubkey,
+    updatedAt: event.created_at,
+    notes: event.tags.find(([n]) => n === 'notes')?.[1] || event.content,
   };
 }
 
@@ -971,11 +901,25 @@ function parseOutcomeEvent(event: NostrEvent): EventOutcome | null {
     type,
     title,
     content: event.content,
-    value: event.tags.find(([n]) => n === 'value')?.[1] ? parseFloat(event.tags.find(([n]) => n === 'value')![1]) : undefined,
+    value: event.tags.find(([n]) => n === 'value')?.[1]
+      ? parseFloat(event.tags.find(([n]) => n === 'value')![1])
+      : undefined,
     unit: event.tags.find(([n]) => n === 'unit')?.[1],
     mediaUrl: event.tags.find(([n]) => n === 'media')?.[1],
     externalRef: event.tags.find(([n]) => n === 'external_ref')?.[1],
     createdAt: event.created_at,
     createdBy: event.pubkey,
   };
+}
+
+// Keep legacy exports that some components may reference by name
+// (these are now unused but prevent TS errors during migration)
+/** @deprecated Use useEventCoordinationData instead */
+export function useRoleClaims(_roleId: string, _eventId: string) {
+  return useQuery({ queryKey: ['role-claims-noop'], queryFn: () => [] as RoleClaim[], enabled: false });
+}
+
+/** @deprecated Use useEventCoordinationData instead */
+export function useItemClaims(_itemId: string, _eventId: string) {
+  return useQuery({ queryKey: ['item-claims-noop'], queryFn: () => [] as ItemClaim[], enabled: false });
 }

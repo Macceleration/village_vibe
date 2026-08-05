@@ -1,5 +1,6 @@
+import { useMemo } from "react";
 import { useCurrentUser } from "@/hooks/useCurrentUser";
-import { useMyTribes, usePublicTribes } from "@/hooks/useTribes";
+import { useMyTribes, usePublicTribes, useTribesCardStatuses } from "@/hooks/useTribes";
 import { CreateTribeDialog } from "./CreateTribeDialog";
 import { TribeCard } from "./TribeCard";
 import { Button } from "@/components/ui/button";
@@ -12,6 +13,23 @@ export function MyTribes() {
   const { user } = useCurrentUser();
   const { data: myTribes, isLoading: myTribesLoading } = useMyTribes(user?.pubkey);
   const { data: publicTribes, isLoading: publicTribesLoading } = usePublicTribes();
+
+  // Collect all visible tribe IDs to batch the status query
+  const allTribeIds = useMemo(() => {
+    const ids = new Set<string>();
+    myTribes?.forEach(t => {
+      const d = t.tags.find(([n]) => n === 'd')?.[1];
+      if (d) ids.add(`${t.pubkey}:${d}`);
+    });
+    publicTribes?.forEach(t => {
+      const d = t.tags.find(([n]) => n === 'd')?.[1];
+      if (d) ids.add(`${t.pubkey}:${d}`);
+    });
+    return Array.from(ids);
+  }, [myTribes, publicTribes]);
+
+  // One batched query covers all visible cards
+  const { data: cardStatuses } = useTribesCardStatuses(allTribeIds, user?.pubkey);
 
   // Only show loading and content if user is logged in
   if (!user) {
@@ -78,9 +96,17 @@ export function MyTribes() {
 
         {hasMyTribes ? (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {myTribes.map((tribe) => (
-              <TribeCard key={tribe.id} tribe={tribe} />
-            ))}
+            {myTribes.map((tribe) => {
+              const d = tribe.tags.find(([n]) => n === 'd')?.[1] || '';
+              const tribeId = `${tribe.pubkey}:${d}`;
+              return (
+                <TribeCard
+                  key={tribe.id}
+                  tribe={tribe}
+                  requestStatus={cardStatuses?.get(tribeId) ?? 'none'}
+                />
+              );
+            })}
           </div>
         ) : (
           <Card className="border-dashed">
@@ -124,9 +150,17 @@ export function MyTribes() {
 
         {hasPublicTribes ? (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {publicTribes.map((tribe) => (
-              <TribeCard key={tribe.id} tribe={tribe} />
-            ))}
+            {publicTribes.map((tribe) => {
+              const d = tribe.tags.find(([n]) => n === 'd')?.[1] || '';
+              const tribeId = `${tribe.pubkey}:${d}`;
+              return (
+                <TribeCard
+                  key={tribe.id}
+                  tribe={tribe}
+                  requestStatus={cardStatuses?.get(tribeId) ?? 'none'}
+                />
+              );
+            })}
           </div>
         ) : (
           <Card className="border-dashed">

@@ -1,7 +1,7 @@
 import type { NostrEvent } from "@nostrify/nostrify";
 import { useState } from "react";
 import { useCurrentUser } from "@/hooks/useCurrentUser";
-import { useClaimItem, useItemClaims, type EventItem } from "@/hooks/useEventCoordination";
+import { useClaimItem, type EventItem, type ItemClaim } from "@/hooks/useEventCoordination";
 import { useNostrPublish } from "@/hooks/useNostrPublish";
 import { useAuthor } from "@/hooks/useAuthor";
 import { Card, CardContent } from "@/components/ui/card";
@@ -19,11 +19,12 @@ interface ItemCardProps {
   item: EventItem;
   event: NostrEvent;
   canManage: boolean;
+  /** Active + withdrawn claims for this item, passed from the parent tab (no extra query). */
+  claims: ItemClaim[];
 }
 
-export function ItemCard({ item, event, canManage }: ItemCardProps) {
+export function ItemCard({ item, event, canManage, claims }: ItemCardProps) {
   const { user } = useCurrentUser();
-  const { data: claims, isLoading: claimsLoading } = useItemClaims(item.id, event.id);
   const { mutate: claimItem, isPending: isClaiming } = useClaimItem();
   const { mutateAsync: publish } = useNostrPublish();
   const { toast } = useToast();
@@ -31,20 +32,14 @@ export function ItemCard({ item, event, canManage }: ItemCardProps) {
   const [claimQty, setClaimQty] = useState('1');
   const [claimNotes, setClaimNotes] = useState('');
 
-  const activeClaims = claims?.filter(c => c.status === 'active') || [];
+  const dTag = event.tags.find(([n]) => n === 'd')?.[1] ?? '';
+
+  const activeClaims = claims.filter(c => c.status === 'active');
   const userClaims = activeClaims.filter(c => c.claimedBy === user?.pubkey);
   const userClaimedQty = userClaims.reduce((sum, c) => sum + c.quantity, 0);
+  // Use item.claimed (computed by batched query) as primary source; fall back to local sum
   const claimedCount = item.claimed || activeClaims.reduce((sum, c) => sum + c.quantity, 0);
   const qtyLeft = item.quantity - claimedCount;
-
-  console.log('🎴 ItemCard render:', {
-    itemId: item.id,
-    itemTitle: item.title,
-    claimsData: claims,
-    claimsLoading,
-    claimedCount,
-    qtyLeft,
-  });
 
   const handleClaim = async () => {
     if (!user) {
@@ -66,35 +61,19 @@ export function ItemCard({ item, event, canManage }: ItemCardProps) {
       return;
     }
 
-    console.log('🎯 Claiming item:', {
-      itemId: item.id,
-      itemTitle: item.title,
-      quantity,
-      eventId: event.id,
-      userPubkey: user.pubkey,
-    });
-
     claimItem({
       itemId: item.id,
       itemEventId: event.id,
       eventId: event.id,
+      eventKind: event.kind,
+      eventAuthor: event.pubkey,
+      eventDTag: dTag,
       quantity,
       notes: claimNotes.trim() || undefined,
     }, {
       onSuccess: async (result) => {
-        console.log('✅ Item claim data created:', {
-          claimId: result.claimId,
-          kind: result.eventData.kind,
-          tags: result.eventData.tags,
-        });
-
         try {
-          console.log('📤 Publishing item claim to Nostr...');
-          const published = await publish(result.eventData);
-          console.log('✅ Item claim published successfully:', {
-            id: published.id,
-            claimId: result.claimId,
-          });
+          await publish(result.eventData);
           toast({
             title: "Success",
             description: `You've claimed ${quantity} ${item.unit || 'item'}${quantity > 1 ? 's' : ''}!`,
@@ -173,7 +152,7 @@ export function ItemCard({ item, event, canManage }: ItemCardProps) {
           {qtyLeft > 0 && (
             <Dialog open={showClaimDialog} onOpenChange={setShowClaimDialog}>
               <DialogTrigger asChild>
-                <Button 
+                <Button
                   disabled={!user}
                   className="w-full"
                 >
@@ -244,7 +223,7 @@ export function ItemCard({ item, event, canManage }: ItemCardProps) {
   );
 }
 
-function ClaimRow({ claim, item }: { claim: any; item: EventItem }) {
+function ClaimRow({ claim, item }: { claim: ItemClaim; item: EventItem }) {
   const { data: author } = useAuthor(claim.claimedBy);
   const metadata = author?.metadata;
   const displayName = metadata?.name || genUserName(claim.claimedBy);

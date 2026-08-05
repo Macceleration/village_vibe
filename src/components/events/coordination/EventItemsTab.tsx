@@ -1,6 +1,6 @@
 import { useState } from "react";
 import type { NostrEvent } from "@nostrify/nostrify";
-import { useEventItems } from "@/hooks/useEventCoordination";
+import { useEventCoordinationData } from "@/hooks/useEventCoordination";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -14,14 +14,8 @@ interface EventItemsTabProps {
 }
 
 export function EventItemsTab({ event, canManage }: EventItemsTabProps) {
-  const { data: items, isLoading } = useEventItems(event.id);
+  const { data, isLoading } = useEventCoordinationData(event);
   const [showCreateDialog, setShowCreateDialog] = useState(false);
-
-  console.log('📦 EventItemsTab render:', {
-    eventId: event.id,
-    itemsCount: items?.length,
-    isLoading,
-  });
 
   if (isLoading) {
     return (
@@ -33,8 +27,11 @@ export function EventItemsTab({ event, canManage }: EventItemsTabProps) {
     );
   }
 
-  const neededItems = items?.filter(i => i.claimed < i.quantity) || [];
-  const fullyClaimedItems = items?.filter(i => i.claimed >= i.quantity) || [];
+  const items = data?.items ?? [];
+  const itemClaims = data?.itemClaims ?? [];
+
+  const neededItems = items.filter(i => i.claimed < i.quantity);
+  const fullyClaimedItems = items.filter(i => i.claimed >= i.quantity);
 
   return (
     <div className="space-y-6">
@@ -53,7 +50,7 @@ export function EventItemsTab({ event, canManage }: EventItemsTabProps) {
         )}
       </div>
 
-      {!items || items.length === 0 ? (
+      {items.length === 0 ? (
         <Card className="border-dashed">
           <CardContent className="py-12 text-center">
             <Package className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
@@ -83,6 +80,7 @@ export function EventItemsTab({ event, canManage }: EventItemsTabProps) {
                   item={item}
                   event={event}
                   canManage={canManage}
+                  claims={itemClaims.filter(c => c.itemId === item.id)}
                 />
               ))}
             </div>
@@ -98,6 +96,7 @@ export function EventItemsTab({ event, canManage }: EventItemsTabProps) {
                   item={item}
                   event={event}
                   canManage={canManage}
+                  claims={itemClaims.filter(c => c.itemId === item.id)}
                 />
               ))}
             </div>

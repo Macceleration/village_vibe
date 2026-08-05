@@ -17,7 +17,7 @@ interface EventCoordinationTabsProps {
 }
 
 export function EventCoordinationTabs({ event, isOrganizer, isModerator }: EventCoordinationTabsProps) {
-  const { data: summary, isLoading } = useEventCoordinationSummary(event.id);
+  const { summary, isLoading } = useEventCoordinationSummary(event);
 
   const canManage = isOrganizer || isModerator;
 

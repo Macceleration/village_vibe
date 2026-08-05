@@ -14,7 +14,7 @@ interface EventOutcomesTabProps {
 }
 
 export function EventOutcomesTab({ event, canManage }: EventOutcomesTabProps) {
-  const { data: outcomes, isLoading } = useEventOutcomes(event.id);
+  const { data: outcomes, isLoading } = useEventOutcomes(event);
   const [showCreateDialog, setShowCreateDialog] = useState(false);
 
   if (isLoading) {
